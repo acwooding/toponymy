@@ -1,52 +1,19 @@
-from nbclient import NotebookClient
-import nbformat
+try:
+    from nbclient import NotebookClient
+    import nbformat
+except ImportError as e:
+    raise ImportError(
+        "Notebook runner dependencies are not installed.\n\n"
+        "Install with:\n"
+        "  pip install 'toponymy[example-notebooks]'\n"
+    ) from e
+
 import time
 import logging
-import tempfile
-import warnings
 import os
-import functools
+from .notebook_test_helpers import doc_dir
 
 logger = logging.getLogger(__name__)
-
-from pathlib import Path
-from sphinx.application import Sphinx
-
-import os
-import warnings
-
-
-def notebook_test_replacement(replacement):
-    """
-    Decorator for mocking function replacements for example notebook testing.
-    """
-
-    def decorator(func):
-        if os.getenv("NOTEBOOK_TESTING", "").lower() == "true":
-
-            @functools.wraps(func)
-            def wrapper(*args, **kwargs):
-                return replacement(*args, **kwargs)
-
-            return wrapper
-        return func
-
-    return decorator
-
-
-def package_root() -> Path:
-    return Path(__file__).resolve().parents[2]
-
-
-def doc_dir() -> Path:
-    return package_root() / "doc"
-
-
-def get_notebooks(doc_dir: Path) -> list[Path]:
-    """
-    Get a list of all ipynb notebooks in the specified directory.
-    """
-    return sorted(Path(doc_dir()).glob("*.ipynb"))
 
 
 class InstrumentedNotebookClient(NotebookClient):
@@ -77,7 +44,7 @@ def run_notebook(
     instrumented: bool = False,
 ):
     """
-    Helper function to run a Jupyter notebook. Optionally uses an instrumented client to log execution times.
+    Helper function to run a Jupyter doc notebook. Optionally uses an instrumented client to log execution times.
     """
     with open(path) as f:
         nb = nbformat.read(f, as_version=4)
@@ -88,6 +55,7 @@ def run_notebook(
         nb,
         timeout=timeout,
         kernel_name=kernel_name,
+        resources={"metadata": {"path": str(doc_dir())}},
     )
 
     logger.info("Running %s", path)

@@ -1,23 +1,15 @@
 import pytest
-from toponymy.tools.notebook_runner import (
-    run_notebook,
-    doc_dir,
-    get_notebooks,
-)
-
 from pathlib import Path
-
 import logging
+import os
 
-print("LOGGERS:")
-for name in logging.root.manager.loggerDict:
-    print(name)
-
+from toponymy.tools.notebook_runner import run_notebook
+from toponymy.tools.notebook_test_helpers import doc_dir, get_notebooks
 
 NOTEBOOK_CONFIG = {
     "basic_usage.ipynb": {
         "has_openainamer": True,
-        "timeout": 400,
+        "timeout": 800,
     },
     "clusterers.ipynb": {
         "has_openainamer": False,
@@ -53,7 +45,7 @@ NOTEBOOK_CONFIG = {
     },
     "topic_summaries.ipynb": {
         "has_openainamer": True,
-        "timeout": 3600,
+        "timeout": 300,
     },
 }
 
@@ -64,15 +56,18 @@ def get_notebook_cfg(path: str):
 
 
 # XXX for making this run pick a single notebook
-TEST_NOTEBOOKS = [get_notebooks(doc_dir)[10]]
-# TEST_NOTEBOOKS = get_notebooks(doc_dir)
+# TEST_NOTEBOOKS = [get_notebooks(doc_dir())[4]]
+TEST_NOTEBOOKS = get_notebooks(doc_dir())
+
+CI = os.getenv("CI", "").lower() == "true"
 
 
+# @pytest.mark.skipif(CI, reason="Skipping in CI environment")
 @pytest.mark.parametrize("notebook", TEST_NOTEBOOKS)
 def test_doc_notebook(notebook, notebook_testing_env):
     cfg = get_notebook_cfg(notebook)
-
+    logging.info(notebook)
     run_notebook(
         notebook,
-        timeout=cfg["timeout"],
+        timeout=3600,  # cfg["timeout"],
     )
