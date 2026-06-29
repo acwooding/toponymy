@@ -8,12 +8,18 @@ import json
 import umap
 import pytest
 import httpx
+import subprocess
+import time
+import logging
 
 from sentence_transformers import SentenceTransformer
 from toponymy.llm_wrappers import HuggingFaceNamer, AsyncHuggingFaceNamer
 from toponymy.clustering import centroids_from_labels, ToponymyClusterer
+from toponymy.tools.notebook_test_helpers import OLLAMA_CI_MODEL
 from toponymy.tests.helpers.llm_test_config import make_mock_data
 import litellm
+
+logger = logging.getLogger(__name__)
 
 # fallback to httpx transport for testing to avoid aiohttp issues in test environments
 litellm.disable_aiohttp_transport = True
@@ -47,13 +53,60 @@ def async_llm():
     # )
 
 
-def is_ollama_model_available(model_name):
+def ollama_has_model(model_or_family: str) -> bool:
     try:
-        response = httpx.get("http://localhost:11434/api/tags")
-        models = [m["name"] for m in response.json()["models"]]
-        return any(model_name in m for m in models)
+        response = httpx.get("http://localhost:11434/api/tags", timeout=2.0)
+        response.raise_for_status()
+
+        models = [m["name"] for m in response.json().get("models", [])]
+        logger.warning(f"ollama models:{models}")
+        # CI case: exact match
+        if model_or_family == OLLAMA_CI_MODEL:
+            return any(m == OLLAMA_CI_MODEL for m in models)
+
+        # local case: family match (e.g. llama3.2:*)
+        return any(m.startswith(model_or_family + ":") for m in models)
+
     except Exception:
         return False
+
+
+def ollama_running() -> bool:
+    # Check if Ollama is installed
+    try:
+        subprocess.run(["ollama", "--version"], capture_output=True, check=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        logger.warning("Ollama not installed")
+        return False
+
+    # Check if Ollama service is running, if not try to start it briefly
+    try:
+        response = httpx.get("http://localhost:11434/api/version", timeout=2)
+        response.raise_for_status()
+        service_running = True
+    except:
+        service_running = False
+
+    if not service_running:
+        # Try to start Ollama service in background for testing
+        try:
+            ollama_process = subprocess.Popen(
+                ["ollama", "serve"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
+            time.sleep(3)  # Give it time to start
+
+            # Check if it started successfully
+            try:
+                response = httpx.get("http://localhost:11434/api/version", timeout=2)
+                response.raise_for_status()
+            except:
+                ollama_process.terminate()
+                logger.warning("Could not start Ollama service for testing")
+                return False
+        except:
+            logger.warning("Could not start Ollama service for testing")
+            return False
+    return True
 
 
 @pytest.fixture
@@ -221,6 +274,11 @@ def premade_topic_model_path():
 
 @pytest.fixture(scope="function")
 def notebook_testing_env():
+    """
+    Sets/unsets the NOTEBOOK_TESTING environment variable to signal
+    notebook_test_replacement decorator, and sets/unsets the OPENAI_API_KEY
+    to a non-existing key make sure live calls aren't made by accident.
+    """
     old = os.environ.get("NOTEBOOK_TESTING")
     old_openai = os.environ.get("OPENAI_API_KEY")
 
