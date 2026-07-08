@@ -54,12 +54,13 @@ def async_llm():
 
 
 def ollama_has_model(model_or_family: str) -> bool:
+    """Check if the specified Ollama model or family is available locally."""
     try:
         response = httpx.get("http://localhost:11434/api/tags", timeout=2.0)
         response.raise_for_status()
 
         models = [m["name"] for m in response.json().get("models", [])]
-        logger.warning(f"ollama models:{models}")
+
         # CI case: exact match
         if model_or_family == OLLAMA_CI_MODEL:
             return any(m == OLLAMA_CI_MODEL for m in models)
@@ -72,14 +73,13 @@ def ollama_has_model(model_or_family: str) -> bool:
 
 
 def ollama_running() -> bool:
-    # Check if Ollama is installed
+    """Check if Ollama is installed and if the service is available. If not try to start it for testing."""
     try:
         subprocess.run(["ollama", "--version"], capture_output=True, check=True)
     except (subprocess.CalledProcessError, FileNotFoundError):
         logger.warning("Ollama not installed")
         return False
 
-    # Check if Ollama service is running, if not try to start it briefly
     try:
         response = httpx.get("http://localhost:11434/api/version", timeout=2)
         response.raise_for_status()
@@ -88,14 +88,12 @@ def ollama_running() -> bool:
         service_running = False
 
     if not service_running:
-        # Try to start Ollama service in background for testing
         try:
             ollama_process = subprocess.Popen(
                 ["ollama", "serve"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
             )
-            time.sleep(3)  # Give it time to start
+            time.sleep(3)
 
-            # Check if it started successfully
             try:
                 response = httpx.get("http://localhost:11434/api/version", timeout=2)
                 response.raise_for_status()

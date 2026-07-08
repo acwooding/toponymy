@@ -1,6 +1,36 @@
+import atexit
+import tempfile
+from pathlib import Path
 import pandas as pd
 import numpy as np
 from .notebook_test_helpers import notebook_test_replacement, examples_dir
+
+_output_dir_cache = None
+
+
+def _test_output_dir():
+    """
+    Get a temporary directory for notebook test outputs. This is used to store any files generated during
+    notebook runs.
+    """
+    # pytest temp dir set using NB_TEST_OUTPUT_DIR environment variable
+    if "NB_TEST_OUTPUT_DIR" in os.environ:
+        return Path(os.environ["NB_TEST_OUTPUT_DIR"])
+    # manual fallback for non-pytest runs
+    global _output_dir_cache
+    if _output_dir_cache is None:
+        tmp = tempfile.TemporaryDirectory()
+        atexit.register(tmp.cleanup)
+        _output_dir_cache = Path(tmp.name)
+    return _output_dir_cache
+
+
+@notebook_test_replacement(_test_output_dir)
+def notebook_output_dir() -> Path:
+    """
+    Get the output directory for doc notebook use. Default to the location of the notebook itself except for in tests use the fallback function.
+    """
+    return Path().resolve()
 
 
 def _load_newsgroups(use_small=False):
@@ -9,7 +39,7 @@ def _load_newsgroups(use_small=False):
         # return df.sample(n=250, random_state=0).reset_index(drop=True)
         # return df.sample(n=125, random_state=36).reset_index(drop=True)
         # return df.sample(n=150, random_state=33).reset_index(drop=True)
-        return pd.read_parquet(examples_dir() / "20newsgroups_embedded_125.parquet")
+        return pd.read_parquet(examples_dir() / "20newsgroups_embedded_150.parquet")
     df = pd.read_parquet(
         "hf://datasets/lmcinnes/20newsgroups_embedded/data/train-00000-of-00001.parquet"
     )

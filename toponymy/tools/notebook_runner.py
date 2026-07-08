@@ -37,6 +37,15 @@ if not any(
     root_logger.addHandler(handler)
 root_logger.setLevel(logging.INFO)
 logging.captureWarnings(True)
+# Ensure headless plotting backends for CI/headless environments
+try:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as _plt
+    _plt.ioff()
+except Exception:
+    # matplotlib may not be installed in minimal test environments; ignore if missing
+    pass
 """
     nb.cells.insert(0, new_code_cell(setup_code))
 

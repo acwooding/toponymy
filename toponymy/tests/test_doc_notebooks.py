@@ -74,18 +74,9 @@ def get_notebook_cfg(path: str):
     return NOTEBOOK_CONFIG.get(name, {"has_openainamer": True, "timeout": 6000})
 
 
-# XXX for making this run pick a single notebook
-# TEST_NOTEBOOKS = [get_notebooks(doc_dir())[4]]
 TEST_NOTEBOOKS = get_notebooks(doc_dir())
 
 CI = os.getenv("CI", "").lower() == "true"
-
-
-def test_show_env():
-    import os
-
-    print("PYTEST process NOTEBOOK_TESTING:", os.getenv("NOTEBOOK_TESTING"))
-    assert os.getenv("NOTEBOOK_TESTING") is None
 
 
 def test_collect_log_lines_from_stream_output():
@@ -149,13 +140,10 @@ def test_doc_notebook(notebook, notebook_testing_env):
     #    pytest.skip(f"Skipped in PR CI")
     if cfg.get("has_openainamer", False):
         model = get_test_ollama_model()
-        logger.info(f"get_test_ollama_model:{model}")
         logger.info(f"ollama running:{ollama_running()}")
-        logger.info(f"ollama_has_model:{ollama_has_model(model)}")
+        logger.info(f"ollama_has_model {model}:{ollama_has_model(model)}")
         if not ollama_has_model(model):
             pytest.skip(f"{model} not available in local Ollama for OpenAI mocking")
-    logger.info(f'OPENI_API_KEY reset:{os.environ["OPENAI_API_KEY"] == "notarealkey"}')
-    logger.info(f'NOTEBOOK_TESTING set:{os.environ["NOTEBOOK_TESTING"] == "true"}')
     run_notebook(
         notebook,
         timeout=3600,  # cfg["timeout"],
