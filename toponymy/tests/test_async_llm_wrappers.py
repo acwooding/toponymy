@@ -24,6 +24,7 @@ from toponymy.tests.helpers.llm_test_config import (
     LITELLM_PROVIDER_CASES,
     SUPPORTED_ASYNC_DEBUG_CALLBACK_NAMERS,
     UNSUPPORTED_ASYNC_DEBUG_CALLBACK_NAMERS,
+    ASYNC_LITELLM_NAMERS,
 )
 from toponymy.tests.helpers.errors import (
     LITELLM_FAIL_FAST,
@@ -904,6 +905,50 @@ async def test_async_litellm_system_prompt_probe_success_caches_true(
 
     assert result == mock_data["valid_topic_name"]
     assert async_litellm_wrapper._system_prompt_capability is True
+
+
+@pytest.mark.asyncio
+async def test_async_litellm_namer_temperature_override_is_used(mock_data):
+    wrapper = AsyncLiteLLMNamer(
+        api_key="dummy",
+        model="openai/gpt-4o-mini",
+        temperature_override=0.0,
+    )
+    response = MockAsyncResponse.create_chat_response(mock_data["valid_topic_name"])
+
+    with patch(
+        "litellm.acompletion",
+        new=AsyncMock(return_value=response),
+    ) as mock_acompletion:
+        result = await wrapper.generate_topic_names(["test prompt"], temperature=0.9)
+
+    assert mock_acompletion.await_args.kwargs["temperature"] == 0.0
+    assert len(result) == 1
+    validate_topic_name(result[0])
+
+
+@pytest.mark.parametrize("namer_cls, kwargs", ASYNC_LITELLM_NAMERS)
+def test_async_namer_temperature_override_passthrough(namer_cls, kwargs):
+    """Parametrized smoke test: temperature_override is forwarded to all async factory namers."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", FutureWarning)
+        namer = namer_cls(temperature_override=0.25, **kwargs)
+
+    assert isinstance(namer, AsyncLiteLLMNamer)
+    assert namer.temperature_override == 0.25
+
+
+@pytest.mark.parametrize("namer_cls, kwargs", ASYNC_LITELLM_NAMERS)
+def test_async_namer_custom_max_tokens_passthrough(namer_cls, kwargs):
+    """Parametrized test: custom max_tokens values are respected by async factory namers."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", FutureWarning)
+        namer = namer_cls(
+            max_tokens_topic_name=300, max_tokens_cluster_names=1200, **kwargs
+        )
+
+    assert namer.max_tokens_topic_name == 300
+    assert namer.max_tokens_cluster_names == 1200
 
 
 # Test for AsyncLLMWrapper base class error cases

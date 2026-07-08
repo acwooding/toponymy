@@ -8,6 +8,7 @@ def _load_newsgroups(use_small=False):
     if use_small:
         # return df.sample(n=250, random_state=0).reset_index(drop=True)
         # return df.sample(n=125, random_state=36).reset_index(drop=True)
+        # return df.sample(n=150, random_state=33).reset_index(drop=True)
         return pd.read_parquet(examples_dir() / "20newsgroups_embedded_125.parquet")
     df = pd.read_parquet(
         "hf://datasets/lmcinnes/20newsgroups_embedded/data/train-00000-of-00001.parquet"

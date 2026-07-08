@@ -146,3 +146,26 @@ UNSUPPORTED_ASYNC_DEBUG_CALLBACK_NAMERS = [
     # (AsyncVLLMNamer, {}),
     #
 ]
+
+SYNC_LITELLM_NAMERS = [
+    (AnthropicNamer, {}),
+    (LiteLLMNamer, {}),
+    (OpenAINamer, {}),
+    (CohereNamer, {}),
+    (TogetherNamer, {}),
+    (AzureAINamer, {"model": "dummy"}),
+    (GoogleGeminiNamer, {}),
+    (OllamaNamer, {}),
+    (ReplicateNamer, {}),
+]
+
+ASYNC_LITELLM_NAMERS = [
+    (AsyncAnthropicNamer, {}),
+    (AsyncLiteLLMNamer, {}),
+    (AsyncOpenAINamer, {}),
+    (AsyncCohereNamer, {}),
+    (AsyncTogether, {}),
+    (AsyncAzureAINamer, {"model": "dummy"}),
+    (AsyncGoogleGeminiNamer, {}),
+    (AsyncOllamaNamer, {}),
+]

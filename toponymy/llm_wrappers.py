@@ -1271,6 +1271,11 @@ try:
             Default maximum number of tokens for cluster name generation. Default is 1024.
             Can be overridden per-call in generate_topic_cluster_names().
 
+        temperature_override: float | None, optional
+            If provided, this value overrides the temperature passed to the underlying
+            LiteLLM completion calls, ensuring a fixed temperature regardless of per-call temperature
+            arguments. Useful for test stability or reproducibility.
+
         provider_kwargs : dict[str, Any], optional
             Additional keyword arguments passed directly to `litellm.completion()` /
             `litellm.acompletion()`. This allows callers to use LiteLLM-specific
@@ -1319,6 +1324,7 @@ try:
             disable_system_prompts: bool = False,
             max_tokens_topic_name: int = 128,
             max_tokens_cluster_names: int = 1024,
+            temperature_override: float | None = None,
             provider_kwargs: dict[str, Any] | None = None,
             callback: DebugCallback | None = None,
         ):
@@ -1326,6 +1332,7 @@ try:
             self.api_key = api_key
             self.model = model
             self.api_base = api_base
+            self.temperature_override = temperature_override
             self.callback = callback
             self._warn_if_debug_callback_unsupported()
             self.extra_prompting = (
@@ -1443,11 +1450,16 @@ try:
             return response.choices[0].message.content
 
         def _call_llm(self, prompt: str, temperature: float, max_tokens: int) -> str:
+            effective_temperature = (
+                self.temperature_override
+                if self.temperature_override is not None
+                else temperature
+            )
             return self._completion_with_messages(
                 messages=[
                     {"role": "user", "content": prompt + self.extra_prompting},
                 ],
-                temperature=temperature,
+                temperature=effective_temperature,
                 max_tokens=max_tokens,
             )
 
@@ -1458,6 +1470,11 @@ try:
             temperature: float,
             max_tokens: int,
         ) -> str:
+            effective_temperature = (
+                self.temperature_override
+                if self.temperature_override is not None
+                else temperature
+            )
             if self._system_prompt_capability is False:
                 messages = self._flatten_system_into_user(system_prompt, user_prompt)
             else:
@@ -1469,7 +1486,7 @@ try:
             try:
                 result = self._completion_with_messages(
                     messages=messages,
-                    temperature=temperature,
+                    temperature=effective_temperature,
                     max_tokens=max_tokens,
                 )
                 if self._system_prompt_capability is None:
@@ -1552,6 +1569,11 @@ try:
             Default maximum number of tokens for cluster name generation. Default is 1024.
             Can be overridden per-call in generate_topic_cluster_names().
 
+        temperature_override: float | None, optional
+            If provided, this value overrides the temperature passed to the underlying
+            LiteLLM completion calls, ensuring a fixed temperature regardless of per-call temperature
+            arguments. Useful for test stability or reproducibility.
+
         provider_kwargs : dict[str, Any], optional
             Additional keyword arguments passed directly to `litellm.completion()` /
             `litellm.acompletion()`. This allows callers to use LiteLLM-specific
@@ -1598,6 +1620,7 @@ try:
             disable_system_prompts: bool = False,
             max_tokens_topic_name: int = 128,
             max_tokens_cluster_names: int = 1024,
+            temperature_override: float | None = None,
             provider_kwargs: dict[str, Any] | None = None,
             callback: DebugCallback | None = None,
         ):
@@ -1605,6 +1628,7 @@ try:
             self.api_key = api_key
             self.model = model
             self.api_base = api_base
+            self.temperature_override = temperature_override
             self.callback = callback
             self._warn_if_debug_callback_unsupported()
             self.extra_prompting = (
@@ -1718,9 +1742,14 @@ try:
             temperature: float,
             max_tokens: int,
         ) -> str:
+            effective_temperature = (
+                self.temperature_override
+                if self.temperature_override is not None
+                else temperature
+            )
             return await self._acompletion_with_messages(
                 messages=[{"role": "user", "content": prompt + self.extra_prompting}],
-                temperature=temperature,
+                temperature=effective_temperature,
                 max_tokens=max_tokens,
             )
 
@@ -1731,6 +1760,11 @@ try:
             temperature: float,
             max_tokens: int,
         ) -> str:
+            effective_temperature = (
+                self.temperature_override
+                if self.temperature_override is not None
+                else temperature
+            )
             if self._system_prompt_capability is False:
                 messages = self._flatten_system_into_user(system_prompt, user_prompt)
             else:
@@ -1743,7 +1777,7 @@ try:
                 # catch to disable system prompt usage for future calls. Everything else raises as normal.
                 result = await self._acompletion_with_messages(
                     messages=messages,
-                    temperature=temperature,
+                    temperature=effective_temperature,
                     max_tokens=max_tokens,
                 )
                 if self._system_prompt_capability is None:
@@ -1790,6 +1824,7 @@ def AnthropicNamer(
     llm_specific_instructions: str | None = None,
     max_tokens_topic_name: int = 128,
     max_tokens_cluster_names: int = 1024,
+    temperature_override: float | None = None,
     provider_kwargs: dict[str, Any] | None = None,
     callback: DebugCallback | None = None,
 ) -> LiteLLMNamer:
@@ -1814,6 +1849,20 @@ def AnthropicNamer(
     llm_specific_instructions : str, optional
         Additional instructions appended to every prompt. This can be used to provide
         model-specific instructions or context that may help improve the quality of the generated text.
+
+    max_tokens_topic_name: int, optional
+        Default maximum number of tokens for topic name generation. Default is 128.
+        Can be overridden per-call in generate_topic_name().
+
+    max_tokens_cluster_names: int, optional
+        Default maximum number of tokens for cluster name generation. Default is 1024.
+        Can be overridden per-call in generate_topic_cluster_names().
+
+    temperature_override: float | None, optional
+        If provided, this value overrides the temperature passed to the underlying
+        LiteLLM completion calls, ensuring a fixed temperature regardless of per-call temperature
+        arguments. Useful for test stability or reproducibility.
+
     provider_kwargs : dict, optional
         Additional keyword arguments passed directly to the LiteLLM completion
         call. Use for provider-specific features not covered by the parameters
@@ -1856,6 +1905,7 @@ def AnthropicNamer(
         llm_specific_instructions=llm_specific_instructions,
         max_tokens_topic_name=max_tokens_topic_name,
         max_tokens_cluster_names=max_tokens_cluster_names,
+        temperature_override=temperature_override,
         provider_kwargs=provider_kwargs,
         callback=callback,
     )
@@ -1869,6 +1919,7 @@ def AsyncAnthropicNamer(
     max_concurrent_requests: int = 10,
     max_tokens_topic_name: int = 128,
     max_tokens_cluster_names: int = 1024,
+    temperature_override: float | None = None,
     provider_kwargs: dict[str, Any] | None = None,
     callback: DebugCallback | None = None,
 ) -> AsyncLiteLLMNamer:
@@ -1896,6 +1947,16 @@ def AsyncAnthropicNamer(
     max_concurrent_requests: int, optional
         The maximum number of concurrent requests to the Anthropic API. Default is 10. This can be adjusted based on your
         application's needs and the rate limits of the Anthropic API. Higher values may improve throughput but could lead to rate limiting.
+    max_tokens_topic_name: int, optional
+        Default maximum number of tokens for topic name generation. Default is 128.
+        Can be overridden per-call in generate_topic_name().
+    max_tokens_cluster_names: int, optional
+        Default maximum number of tokens for cluster name generation. Default is 1024.
+        Can be overridden per-call in generate_topic_cluster_names().
+    temperature_override: float | None, optional
+        If provided, this value overrides the temperature passed to the underlying
+        LiteLLM completion calls, ensuring a fixed temperature regardless of per-call temperature
+        arguments. Useful for test stability or reproducibility.
     provider_kwargs : dict, optional
         Additional keyword arguments passed directly to the LiteLLM completion
         call. Use for provider-specific features not covered by the parameters
@@ -1939,6 +2000,7 @@ def AsyncAnthropicNamer(
         max_concurrent_requests=max_concurrent_requests,
         max_tokens_topic_name=max_tokens_topic_name,
         max_tokens_cluster_names=max_tokens_cluster_names,
+        temperature_override=temperature_override,
         provider_kwargs=provider_kwargs,
         callback=callback,
     )
@@ -1986,6 +2048,7 @@ def CohereNamer(
     llm_specific_instructions: str | None = None,
     max_tokens_topic_name: int = 128,
     max_tokens_cluster_names: int = 1024,
+    temperature_override: float | None = None,
     provider_kwargs: dict[str, Any] | None = None,
     callback: DebugCallback | None = None,
     base_url: str | None = None,  # deprecated, renamed to api_base
@@ -2016,6 +2079,16 @@ def CohereNamer(
         Additional keyword arguments passed directly to the LiteLLM completion
         call. Use for provider-specific features not covered by the parameters
         above, e.g. ``{"timeout": 30}``.
+    max_tokens_topic_name: int, optional
+        Default maximum number of tokens for topic name generation. Default is 128.
+        Can be overridden per-call in generate_topic_name().
+    max_tokens_cluster_names: int, optional
+        Default maximum number of tokens for cluster name generation. Default is 1024.
+        Can be overridden per-call in generate_topic_cluster_names().
+    temperature_override: float | None, optional
+        If provided, this value overrides the temperature passed to the underlying
+        LiteLLM completion calls, ensuring a fixed temperature regardless of per-call temperature
+        arguments. Useful for test stability or reproducibility.
     callback : DebugCallback, optional
         Optional callback function for observability. Called on each LLM
         request and response with a structured payload. Useful for logging,
@@ -2069,6 +2142,7 @@ def CohereNamer(
         llm_specific_instructions=llm_specific_instructions,
         max_tokens_topic_name=max_tokens_topic_name,
         max_tokens_cluster_names=max_tokens_cluster_names,
+        temperature_override=temperature_override,
         provider_kwargs=provider_kwargs,
         callback=callback,
     )
@@ -2082,6 +2156,7 @@ def AsyncCohereNamer(
     max_concurrent_requests: int = 10,
     max_tokens_topic_name: int = 128,
     max_tokens_cluster_names: int = 1024,
+    temperature_override: float | None = None,
     provider_kwargs: dict[str, Any] | None = None,
     callback: DebugCallback | None = None,
     base_url: str = None,
@@ -2111,6 +2186,16 @@ def AsyncCohereNamer(
     max_concurrent_requests: int, optional
         The maximum number of concurrent requests to the Cohere API. Default is 10. This can be adjusted based on your
         application's needs and the rate limits of the Cohere API. Higher values may improve throughput but could lead to rate limiting.
+    max_tokens_topic_name: int, optional
+        Default maximum number of tokens for topic name generation. Default is 128.
+        Can be overridden per-call in generate_topic_name().
+    max_tokens_cluster_names: int, optional
+        Default maximum number of tokens for cluster name generation. Default is 1024.
+        Can be overridden per-call in generate_topic_cluster_names().
+    temperature_override: float | None, optional
+        If provided, this value overrides the temperature passed to the underlying
+        LiteLLM completion calls, ensuring a fixed temperature regardless of per-call temperature
+        arguments. Useful for test stability or reproducibility.
     provider_kwargs : dict, optional
         Additional keyword arguments passed directly to the LiteLLM completion
         call. Use for provider-specific features not covered by the parameters
@@ -2169,6 +2254,7 @@ def AsyncCohereNamer(
         max_concurrent_requests=max_concurrent_requests,
         max_tokens_topic_name=max_tokens_topic_name,
         max_tokens_cluster_names=max_tokens_cluster_names,
+        temperature_override=temperature_override,
         provider_kwargs=provider_kwargs,
         callback=callback,
     )
@@ -2179,6 +2265,9 @@ def TogetherNamer(
     api_key: str | None = None,
     api_base: str | None = None,
     llm_specific_instructions: str | None = None,
+    max_tokens_topic_name: int = 128,
+    max_tokens_cluster_names: int = 1024,
+    temperature_override: float | None = None,
     provider_kwargs: dict[str, Any] | None = None,
     callback: DebugCallback | None = None,
 ) -> LiteLLMNamer:
@@ -2198,6 +2287,16 @@ def TogetherNamer(
     llm_specific_instructions : str, optional
         Additional instructions appended to every prompt. This can be used to provide
         model-specific instructions or context that may help improve the quality of the generated text.
+    max_tokens_topic_name: int, optional
+        Default maximum number of tokens for topic name generation. Default is 128.
+        Can be overridden per-call in generate_topic_name().
+    max_tokens_cluster_names: int, optional
+        Default maximum number of tokens for cluster name generation. Default is 1024.
+        Can be overridden per-call in generate_topic_cluster_names().
+    temperature_override: float | None, optional
+        If provided, this value overrides the temperature passed to the underlying
+        LiteLLM completion calls, ensuring a fixed temperature regardless of per-call temperature
+        arguments. Useful for test stability or reproducibility.
     provider_kwargs : dict, optional
         Additional keyword arguments passed directly to the LiteLLM completion
         call. Use for provider-specific features not covered by the parameters
@@ -2244,6 +2343,9 @@ def TogetherNamer(
         api_key=api_key,
         api_base=api_base,
         llm_specific_instructions=llm_specific_instructions,
+        max_tokens_topic_name=max_tokens_topic_name,
+        max_tokens_cluster_names=max_tokens_cluster_names,
+        temperature_override=temperature_override,
         provider_kwargs=provider_kwargs,
         callback=callback,
     )
@@ -2255,6 +2357,9 @@ def AsyncTogether(
     api_base: str | None = None,
     llm_specific_instructions: str | None = None,
     max_concurrent_requests: int = 10,
+    max_tokens_topic_name: int = 128,
+    max_tokens_cluster_names: int = 1024,
+    temperature_override: float | None = None,
     provider_kwargs: dict[str, Any] | None = None,
     callback: DebugCallback | None = None,
 ) -> AsyncLiteLLMNamer:
@@ -2278,6 +2383,16 @@ def AsyncTogether(
     max_concurrent_requests: int, optional
         The maximum number of concurrent requests to the Together AI API. Default is 10. This can be adjusted based on your
         application's needs and the rate limits of the Together AI API. Higher values may improve throughput but could lead to rate limiting.
+    max_tokens_topic_name: int, optional
+        Default maximum number of tokens for topic name generation. Default is 128.
+        Can be overridden per-call in generate_topic_name().
+    max_tokens_cluster_names: int, optional
+        Default maximum number of tokens for cluster name generation. Default is 1024.
+        Can be overridden per-call in generate_topic_cluster_names().
+    temperature_override: float | None, optional
+        If provided, this value overrides the temperature passed to the underlying
+        LiteLLM completion calls, ensuring a fixed temperature regardless of per-call temperature
+        arguments. Useful for test stability or reproducibility.
     provider_kwargs : dict, optional
         Additional keyword arguments passed directly to the LiteLLM completion
         call. Use for provider-specific features not covered by the parameters
@@ -2326,6 +2441,9 @@ def AsyncTogether(
         api_base=api_base,
         llm_specific_instructions=llm_specific_instructions,
         max_concurrent_requests=max_concurrent_requests,
+        max_tokens_topic_name=max_tokens_topic_name,
+        max_tokens_cluster_names=max_tokens_cluster_names,
+        temperature_override=temperature_override,
         provider_kwargs=provider_kwargs,
         callback=callback,
     )
@@ -3331,6 +3449,7 @@ def OllamaNamer(
     llm_specific_instructions: str | None = None,
     max_tokens_topic_name: int = 128,
     max_tokens_cluster_names: int = 1024,
+    temperature_override: float | None = None,
     provider_kwargs: dict[str, Any] | None = None,
     callback: DebugCallback | None = None,
     host: str | None = None,  # deprecated, renamed to api_base
@@ -3352,6 +3471,16 @@ def OllamaNamer(
     llm_specific_instructions : str, optional
         Additional instructions appended to every prompt. This can be used to provide
         model-specific instructions or context that may help improve the quality of the generated text.
+    max_tokens_topic_name: int, optional
+        Default maximum number of tokens for topic name generation. Default is 128.
+        Can be overridden per-call in generate_topic_name().
+    max_tokens_cluster_names: int, optional
+        Default maximum number of tokens for cluster name generation. Default is 1024.
+        Can be overridden per-call in generate_topic_cluster_names().
+    temperature_override: float | None, optional
+        If provided, this value overrides the temperature passed to the underlying
+        LiteLLM completion calls, ensuring a fixed temperature regardless of per-call temperature
+        arguments. Useful for test stability or reproducibility.
     provider_kwargs : dict, optional
         Additional keyword arguments passed directly to the LiteLLM completion
         call. Use for provider-specific features not covered by the parameters
@@ -3398,6 +3527,7 @@ def OllamaNamer(
         llm_specific_instructions=llm_specific_instructions,
         max_tokens_topic_name=max_tokens_topic_name,
         max_tokens_cluster_names=max_tokens_cluster_names,
+        temperature_override=temperature_override,
         provider_kwargs=provider_kwargs,
         callback=callback,
     )
@@ -3411,6 +3541,7 @@ def AsyncOllamaNamer(
     max_concurrent_requests: int = 5,
     max_tokens_topic_name: int = 128,
     max_tokens_cluster_names: int = 1024,
+    temperature_override: float | None = None,
     provider_kwargs: dict[str, Any] | None = None,
     callback: DebugCallback | None = None,
     host: str | None = None,  # deprecated, renamed to api_base
@@ -3435,6 +3566,16 @@ def AsyncOllamaNamer(
     max_concurrent_requests: int, optional
         The maximum number of concurrent requests. Default is 5. This can be adjusted based on your
         application's needs and the rate limits of the OpenAI API. Higher values may improve throughput but could lead to rate limiting.
+    max_tokens_topic_name: int, optional
+        Default maximum number of tokens for topic name generation. Default is 128.
+        Can be overridden per-call in generate_topic_name().
+    max_tokens_cluster_names: int, optional
+        Default maximum number of tokens for cluster name generation. Default is 1024.
+        Can be overridden per-call in generate_topic_cluster_names().
+    temperature_override: float | None, optional
+        If provided, this value overrides the temperature passed to the underlying
+        LiteLLM completion calls, ensuring a fixed temperature regardless of per-call temperature
+        arguments. Useful for test stability or reproducibility.
     provider_kwargs : dict, optional
         Additional keyword arguments passed directly to the LiteLLM completion
         call. Use for provider-specific features not covered by the parameters
@@ -3481,6 +3622,7 @@ def AsyncOllamaNamer(
         max_concurrent_requests=max_concurrent_requests,
         max_tokens_topic_name=max_tokens_topic_name,
         max_tokens_cluster_names=max_tokens_cluster_names,
+        temperature_override=temperature_override,
         provider_kwargs=provider_kwargs,
         callback=callback,
     )
@@ -3492,7 +3634,9 @@ def NotebookOpenAINamerMock(*args, **kwargs):
     For mocking OpenAINamer calls with a local Ollama model.
     """
     logger.info("Using NotebookOpenAINamerMock instead of OpenAINamer")
-    return OllamaNamer(model=get_test_ollama_model())
+    return OllamaNamer(
+        model=get_test_ollama_model(), temperature_override=0.0, **kwargs
+    )
 
 
 @notebook_test_replacement(NotebookOpenAINamerMock)
@@ -3503,6 +3647,7 @@ def OpenAINamer(
     llm_specific_instructions: str | None = None,
     max_tokens_topic_name: int = 128,
     max_tokens_cluster_names: int = 1024,
+    temperature_override: float | None = None,
     provider_kwargs: dict[str, Any] | None = None,
     callback: DebugCallback | None = None,
     base_url: str | None = None,  # deprecated, renamed to api_base
@@ -3534,6 +3679,16 @@ def OpenAINamer(
     llm_specific_instructions : str, optional
         Additional instructions appended to every prompt. This can be used to provide
         model-specific instructions or context that may help improve the quality of the generated text.
+    max_tokens_topic_name: int, optional
+        Default maximum number of tokens for topic name generation. Default is 128.
+        Can be overridden per-call in generate_topic_name().
+    max_tokens_cluster_names: int, optional
+        Default maximum number of tokens for cluster name generation. Default is 1024.
+        Can be overridden per-call in generate_topic_cluster_names().
+    temperature_override: float | None, optional
+        If provided, this value overrides the temperature passed to the underlying
+        LiteLLM completion calls, ensuring a fixed temperature regardless of per-call temperature
+        arguments. Useful for test stability or reproducibility.
     provider_kwargs : dict, optional
         Additional keyword arguments passed directly to the LiteLLM completion
         call. Use for provider-specific features not covered by the parameters
@@ -3597,6 +3752,7 @@ def OpenAINamer(
         llm_specific_instructions=llm_specific_instructions,
         max_tokens_topic_name=max_tokens_topic_name,
         max_tokens_cluster_names=max_tokens_cluster_names,
+        temperature_override=temperature_override,
         provider_kwargs=provider_kwargs,
         callback=callback,
     )
@@ -3610,6 +3766,7 @@ def AsyncOpenAINamer(
     max_concurrent_requests: int = 10,
     max_tokens_topic_name: int = 128,
     max_tokens_cluster_names: int = 1024,
+    temperature_override: float | None = None,
     provider_kwargs: dict[str, Any] | None = None,
     callback: DebugCallback | None = None,
     base_url: str | None = None,  # deprecated, renamed to api_base
@@ -3644,6 +3801,16 @@ def AsyncOpenAINamer(
     max_concurrent_requests: int, optional
         The maximum number of concurrent requests to the OpenAI API. Default is 10. This can be adjusted based on your
         application's needs and the rate limits of the OpenAI API. Higher values may improve throughput but could lead to rate limiting.
+    max_tokens_topic_name: int, optional
+        Default maximum number of tokens for topic name generation. Default is 128.
+        Can be overridden per-call in generate_topic_name().
+    max_tokens_cluster_names: int, optional
+        Default maximum number of tokens for cluster name generation. Default is 1024.
+        Can be overridden per-call in generate_topic_cluster_names().
+    temperature_override: float | None, optional
+        If provided, this value overrides the temperature passed to the underlying
+        LiteLLM completion calls, ensuring a fixed temperature regardless of per-call temperature
+        arguments. Useful for test stability or reproducibility.
     provider_kwargs : dict, optional
         Additional keyword arguments passed directly to the LiteLLM completion
         call. Use for provider-specific features not covered by the parameters
@@ -3707,6 +3874,7 @@ def AsyncOpenAINamer(
         max_concurrent_requests=max_concurrent_requests,
         max_tokens_topic_name=max_tokens_topic_name,
         max_tokens_cluster_names=max_tokens_cluster_names,
+        temperature_override=temperature_override,
         provider_kwargs=provider_kwargs,
         callback=callback,
     )
@@ -3720,6 +3888,7 @@ def AzureAINamer(
     llm_specific_instructions: str | None = None,
     max_tokens_topic_name: int = 128,
     max_tokens_cluster_names: int = 1024,
+    temperature_override: float | None = None,
     provider_kwargs: dict[str, Any] | None = None,
     callback: DebugCallback | None = None,
 ) -> LiteLLMNamer:
@@ -3745,6 +3914,16 @@ def AzureAINamer(
     llm_specific_instructions : str, optional
         Additional instructions appended to every prompt. This can be used to provide
         model-specific instructions or context that may help improve the quality of the generated text.
+    max_tokens_topic_name: int, optional
+        Default maximum number of tokens for topic name generation. Default is 128.
+        Can be overridden per-call in generate_topic_name().
+    max_tokens_cluster_names: int, optional
+        Default maximum number of tokens for cluster name generation. Default is 1024.
+        Can be overridden per-call in generate_topic_cluster_names().
+    temperature_override: float | None, optional
+        If provided, this value overrides the temperature passed to the underlying
+        LiteLLM completion calls, ensuring a fixed temperature regardless of per-call temperature
+        arguments. Useful for test stability or reproducibility.
     provider_kwargs : dict, optional
         Additional keyword arguments passed directly to the LiteLLM completion
         call. Use for provider-specific features not covered by the parameters
@@ -3783,6 +3962,7 @@ def AzureAINamer(
         llm_specific_instructions=llm_specific_instructions,
         max_tokens_topic_name=max_tokens_topic_name,
         max_tokens_cluster_names=max_tokens_cluster_names,
+        temperature_override=temperature_override,
         provider_kwargs=provider_kwargs,
         callback=callback,
     )
@@ -3797,6 +3977,7 @@ def AsyncAzureAINamer(
     max_concurrent_requests: int = 10,
     max_tokens_topic_name: int = 128,
     max_tokens_cluster_names: int = 1024,
+    temperature_override: float | None = None,
     provider_kwargs: dict[str, Any] | None = None,
     callback: DebugCallback | None = None,
 ) -> AsyncLiteLLMNamer:
@@ -3827,6 +4008,16 @@ def AsyncAzureAINamer(
     max_concurrent_requests: int, optional
         The maximum number of concurrent requests to the Anthropic API. Default is 10. This can be adjusted based on your
         application's needs and the rate limits of the Anthropic API. Higher values may improve throughput but could lead to rate limiting.
+    max_tokens_topic_name: int, optional
+        Default maximum number of tokens for topic name generation. Default is 128.
+        Can be overridden per-call in generate_topic_name().
+    max_tokens_cluster_names: int, optional
+        Default maximum number of tokens for cluster name generation. Default is 1024.
+        Can be overridden per-call in generate_topic_cluster_names().
+    temperature_override: float | None, optional
+        If provided, this value overrides the temperature passed to the underlying
+        LiteLLM completion calls, ensuring a fixed temperature regardless of per-call temperature
+        arguments. Useful for test stability or reproducibility.
     provider_kwargs : dict, optional
         Additional keyword arguments passed directly to the LiteLLM completion
         call. Use for provider-specific features not covered by the parameters
@@ -3865,6 +4056,7 @@ def AsyncAzureAINamer(
         max_concurrent_requests=max_concurrent_requests,
         max_tokens_topic_name=max_tokens_topic_name,
         max_tokens_cluster_names=max_tokens_cluster_names,
+        temperature_override=temperature_override,
         provider_kwargs=provider_kwargs,
         callback=callback,
     )
@@ -4156,6 +4348,9 @@ def GoogleGeminiNamer(
     api_key: str | None = None,
     api_base: str | None = None,
     llm_specific_instructions: str | None = None,
+    max_tokens_topic_name: int = 128,
+    max_tokens_cluster_names: int = 1024,
+    temperature_override: float | None = None,
     provider_kwargs: dict[str, Any] | None = None,
     callback: DebugCallback | None = None,
 ) -> LiteLLMNamer:
@@ -4175,6 +4370,16 @@ def GoogleGeminiNamer(
     llm_specific_instructions : str, optional
         Additional instructions appended to every prompt. This can be used to provide
         model-specific instructions or context that may help improve the quality of the generated text.
+    max_tokens_topic_name: int, optional
+        Default maximum number of tokens for topic name generation. Default is 128.
+        Can be overridden per-call in generate_topic_name().
+    max_tokens_cluster_names: int, optional
+        Default maximum number of tokens for cluster name generation. Default is 1024.
+        Can be overridden per-call in generate_topic_cluster_names().
+    temperature_override: float | None, optional
+        If provided, this value overrides the temperature passed to the underlying
+        LiteLLM completion calls, ensuring a fixed temperature regardless of per-call temperature
+        arguments. Useful for test stability or reproducibility.
     provider_kwargs : dict, optional
         Additional keyword arguments passed directly to the LiteLLM completion
         call. Use for provider-specific features not covered by the parameters
@@ -4225,6 +4430,9 @@ def GoogleGeminiNamer(
         use_json_object=True,
         disable_system_prompts=False,
         llm_specific_instructions=llm_specific_instructions,
+        max_tokens_topic_name=max_tokens_topic_name,
+        max_tokens_cluster_names=max_tokens_cluster_names,
+        temperature_override=temperature_override,
         provider_kwargs=provider_kwargs,
         callback=callback,
     )
@@ -4236,6 +4444,9 @@ def AsyncGoogleGeminiNamer(
     api_base: str | None = None,
     llm_specific_instructions: str | None = None,
     max_concurrent_requests: int = 10,
+    max_tokens_topic_name: int = 128,
+    max_tokens_cluster_names: int = 1024,
+    temperature_override: float | None = None,
     provider_kwargs: dict[str, Any] | None = None,
     callback: DebugCallback | None = None,
 ) -> AsyncLiteLLMNamer:
@@ -4257,6 +4468,16 @@ def AsyncGoogleGeminiNamer(
     max_concurrent_requests: int, optional
         The maximum number of concurrent requests to the Gemini API. Default is 10. This can be adjusted based on your
         application's needs and the rate limits of the Gemini API. Higher values may improve throughput but could lead to rate limiting.
+    max_tokens_topic_name: int, optional
+        Default maximum number of tokens for topic name generation. Default is 128.
+        Can be overridden per-call in generate_topic_name().
+    max_tokens_cluster_names: int, optional
+        Default maximum number of tokens for cluster name generation. Default is 1024.
+        Can be overridden per-call in generate_topic_cluster_names().
+    temperature_override: float | None, optional
+        If provided, this value overrides the temperature passed to the underlying
+        LiteLLM completion calls, ensuring a fixed temperature regardless of per-call temperature
+        arguments. Useful for test stability or reproducibility.
     provider_kwargs : dict, optional
         Additional keyword arguments passed directly to the LiteLLM completion
         call. Use for provider-specific features not covered by the parameters
@@ -4308,6 +4529,9 @@ def AsyncGoogleGeminiNamer(
         use_json_object=True,
         llm_specific_instructions=llm_specific_instructions,
         max_concurrent_requests=max_concurrent_requests,
+        max_tokens_topic_name=max_tokens_topic_name,
+        max_tokens_cluster_names=max_tokens_cluster_names,
+        temperature_override=temperature_override,
         provider_kwargs=provider_kwargs,
         callback=callback,
     )
@@ -4352,6 +4576,9 @@ def ReplicateNamer(
     api_key: str | None = None,
     api_base: str | None = None,
     llm_specific_instructions: str | None = None,
+    max_tokens_topic_name: int = 128,
+    max_tokens_cluster_names: int = 1024,
+    temperature_override: float | None = None,
     provider_kwargs: dict[str, Any] | None = None,
     callback: DebugCallback | None = None,
     api_token: str = None,
@@ -4371,6 +4598,16 @@ def ReplicateNamer(
     llm_specific_instructions : str, optional
         Additional instructions appended to every prompt. This can be used to provide
         model-specific instructions or context that may help improve the quality of the generated text.
+    max_tokens_topic_name: int, optional
+        Default maximum number of tokens for topic name generation. Default is 128.
+        Can be overridden per-call in generate_topic_name().
+    max_tokens_cluster_names: int, optional
+        Default maximum number of tokens for cluster name generation. Default is 1024.
+        Can be overridden per-call in generate_topic_cluster_names().
+    temperature_override: float | None, optional
+        If provided, this value overrides the temperature passed to the underlying
+        LiteLLM completion calls, ensuring a fixed temperature regardless of per-call temperature
+        arguments. Useful for test stability or reproducibility.
     provider_kwargs : dict, optional
         Additional keyword arguments passed directly to the LiteLLM completion
         call. Use for provider-specific features not covered by the parameters
@@ -4412,6 +4649,9 @@ def ReplicateNamer(
         api_base=api_base,
         use_json_object=False,  # Replicate's API does not support this
         llm_specific_instructions=llm_specific_instructions,
+        max_tokens_topic_name=max_tokens_topic_name,
+        max_tokens_cluster_names=max_tokens_cluster_names,
+        temperature_override=temperature_override,
         provider_kwargs=provider_kwargs,
         callback=callback,
     )
