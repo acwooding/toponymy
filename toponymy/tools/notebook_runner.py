@@ -120,14 +120,42 @@ def run_notebook(
     )
 
     logger.info("Running %s", path)
-    client.execute()
     try:
-        executed_nb = client.nb
-    except AttributeError:
-        executed_nb = nb
+        client.execute()
+        try:
+            executed_nb = client.nb
+        except AttributeError:
+            executed_nb = nb
+    except Exception as exc:  # capture partial outputs on failure
+        try:
+            executed_nb = getattr(client, "nb", nb)
+        except Exception:
+            executed_nb = nb
 
+        # collect and re-emit any log-like lines we captured so far
+        collected = collect_log_lines(executed_nb, ignore_litellm=ignore_litellm)
+        logger.info(
+            "Collected %s logging lines from failed notebook %s", len(collected), path
+        )
+        for level, line in collected:
+            normalized = level.lower()
+            log_fn = {
+                "debug": logger.debug,
+                "info": logger.info,
+                "warning": logger.warning,
+                "error": logger.error,
+                "critical": logger.critical,
+            }.get(normalized, logger.info)
+            log_fn("Notebook log line: %s", line)
+
+        if return_log_lines:
+            return collected
+
+        # re-raise the original exception after logging
+        raise
+
+    # success path: collect and log normally
     collected = collect_log_lines(executed_nb, ignore_litellm=ignore_litellm)
-
     logger.info("Collected %s logging lines from notebook %s", len(collected), path)
     for level, line in collected:
         normalized = level.lower()
