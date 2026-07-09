@@ -19,7 +19,7 @@ NOTEBOOK_CONFIG = {
     "basic_usage.ipynb": {
         "has_openainamer": True,
         "run_in_pr": True,
-        "timeout": 800,
+        "timeout": 1000,
     },
     "clusterers.ipynb": {
         "has_openainamer": False,
@@ -44,12 +44,12 @@ NOTEBOOK_CONFIG = {
     "keyphrases.ipynb": {
         "has_openainamer": False,
         "run_in_pr": False,
-        "timeout": 1800,
+        "timeout": 1000,
     },
     "saving_loading.ipynb": {
         "has_openainamer": True,
         "run_in_pr": True,
-        "timeout": 600,
+        "timeout": 1000,
     },
     "test_audit_functionality.ipynb": {
         "has_openainamer": True,
@@ -59,12 +59,12 @@ NOTEBOOK_CONFIG = {
     "test_max_layers_newsgroups.ipynb": {
         "has_openainamer": True,
         "run_in_pr": False,
-        "timeout": 600,
+        "timeout": 300,
     },
     "topic_summaries.ipynb": {
         "has_openainamer": True,
         "run_in_pr": False,
-        "timeout": 300,
+        "timeout": 600,
     },
 }
 
@@ -95,7 +95,11 @@ def test_collect_log_lines_from_stream_output():
 def test_run_notebook_captures_logger_output(tmp_path):
     path = tmp_path / "logging_capture.ipynb"
     nb = new_notebook(
-        cells=[new_code_cell("import logging\nlogging.warning('hello from logger')")]
+        cells=[
+            new_code_cell(
+                "import logging\nlogging.warning('hello from logger')\nlogging.info('info from logger')"
+            )
+        ]
     )
     with open(path, "w") as f:
         import nbformat
@@ -106,6 +110,7 @@ def test_run_notebook_captures_logger_output(tmp_path):
     assert any(
         level == "warning" and "hello from logger" in line for level, line in lines
     )
+    assert any(level == "info" and "info from logger" in line for level, line in lines)
 
 
 def test_run_notebook_ignores_litellm_output(tmp_path):
@@ -146,5 +151,5 @@ def test_doc_notebook(notebook, notebook_testing_env):
             pytest.skip(f"{model} not available in local Ollama for OpenAI mocking")
     run_notebook(
         notebook,
-        timeout=3600,  # cfg["timeout"],
+        timeout=cfg["timeout"],
     )

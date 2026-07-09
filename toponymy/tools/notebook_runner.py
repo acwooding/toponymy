@@ -13,15 +13,27 @@ import re
 import time
 import logging
 import os
-from .notebook_test_helpers import doc_dir
+from pathlib import Path
+from toponymy.tools.notebook_test_helpers import doc_dir
 
 logger = logging.getLogger(__name__)
 
 LEVEL_RE = re.compile(r"\b(DEBUG|INFO|WARNING|ERROR|CRITICAL)\b")
 
 
-def _inject_logging_capture_cell(nb):
-    """Ensure logger output is routed to stdout in the notebook kernel."""
+def _inject_logging_capture_cell(nb: nbformat.NotebookNode) -> None:
+    """
+    Inject a logging capture cell into the notebook to ensure logger output is routed to stdout.
+
+    Parameters
+    ----------
+    nb : nbformat.NotebookNode
+        The notebook object to inject the logging setup cell into.
+
+    Returns
+    -------
+    None
+    """
     setup_code = """
 import sys
 import logging
@@ -37,25 +49,30 @@ if not any(
     root_logger.addHandler(handler)
 root_logger.setLevel(logging.INFO)
 logging.captureWarnings(True)
-# Ensure headless plotting backends for CI/headless environments
-try:
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as _plt
-    _plt.ioff()
-except Exception:
-    # matplotlib may not be installed in minimal test environments; ignore if missing
-    pass
 """
     nb.cells.insert(0, new_code_cell(setup_code))
 
 
 def collect_log_lines(
-    executed_nb, ignore_litellm: bool = False
+    executed_nb: nbformat.NotebookNode, ignore_litellm: bool = False
 ) -> list[tuple[str, str]]:
-    """Collect only log-like lines from notebook code-cell outputs.
+    """
+    Collect only log-like lines from notebook code-cell outputs.
 
-    Returns a list of (level, text) tuples.
+    Scans all code cell outputs for lines matching logging level patterns (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+    and returns them as (level, text) tuples.
+
+    Parameters
+    ----------
+    executed_nb : nbformat.NotebookNode
+        The executed notebook object with cell outputs populated.
+    ignore_litellm : bool, optional
+        If True, exclude lines containing the string "LiteLLM" from the collected output. Default is False.
+
+    Returns
+    -------
+    list[tuple[str, str]]
+        A list of (log_level, line_text) tuples where log_level is the lowercase level name.
     """
     collected: list[tuple[str, str]] = []
 
@@ -104,16 +121,41 @@ def run_notebook(
     instrumented: bool = False,
     return_log_lines: bool = False,
     ignore_litellm: bool = True,
-):
+) -> nbformat.NotebookNode | list[tuple[str, str]]:
     """
-    Helper function to run a Jupyter doc notebook. Optionally uses an instrumented client to log execution times.
+    Execute a Jupyter notebook with optional logging instrumentation and log-line collection.
 
-    If ``return_log_lines`` is True, this returns only the collected log-like lines
-    emitted by the notebook during execution.
+    Runs the notebook in a kernel, injects a logging capture cell to ensure stdlib logging
+    is routed to stdout, and optionally collects log-like lines from cell outputs. On exception,
+    partial notebook outputs and collected logs are re-emitted before re-raising.
 
-    If ``ignore_litellm`` is True, notebook output lines containing "LiteLLM"
-    are excluded from the returned log lines.
+    Parameters
+    ----------
+    path : str
+        Path to the .ipynb notebook file to execute.
+    timeout : int, optional
+        Timeout in seconds for notebook execution. Default is 3000.
+    kernel_name : str, optional
+        Name of the Jupyter kernel to use. Default is "toponymy-uv".
+    instrumented : bool, optional
+        If True, use InstrumentedNotebookClient to log cell start/end times and total runtime. Default is False.
+    return_log_lines : bool, optional
+        If True, return only the collected log-like lines instead of the executed notebook object. Default is False.
+    ignore_litellm : bool, optional
+        If True, exclude log lines containing "LiteLLM" from collection. Default is True.
+
+    Returns
+    -------
+    nbformat.NotebookNode | list[tuple[str, str]]
+        If return_log_lines is False, returns the executed notebook object.
+        If return_log_lines is True, returns a list of (log_level, line_text) tuples.
+
+    Raises
+    ------
+    Exception
+        Any exception raised by the notebook kernel during execution is re-raised after logging.
     """
+
     with open(path) as f:
         nb = nbformat.read(f, as_version=4)
 
@@ -184,17 +226,35 @@ def run_notebook(
 
 
 NOTEBOOKS = [
-    "doc/basic_usage.ipynb",
+    doc_dir() / "basic_usage.ipynb",
 ]
 
 
 def run_all(
-    notebooks=NOTEBOOKS, instrumented: bool = False, ignore_litellm: bool = False
-):
+    notebooks: list[str] | None = None,
+    instrumented: bool = False,
+    ignore_litellm: bool = False,
+) -> None:
     """
-    Helper function to run all notebooks in the NOTEBOOKS list, or a custom list of notebooks if provided. Optionally uses an instrumented client to log execution times.
+    Execute a sequence of notebooks with optional logging instrumentation.
+
+    Iterates through the provided list of notebook paths and runs each one using run_notebook().
+
+    Parameters
+    ----------
+    notebooks : list[str], optional
+        List of notebook file paths to execute. If None, uses the default NOTEBOOKS list. Default is None.
+    instrumented : bool, optional
+        If True, use instrumented logging for each notebook. Default is False.
+    ignore_litellm : bool, optional
+        If True, exclude LiteLLM output lines from logging. Default is False.
+
+    Returns
+    -------
+    None
     """
-    notebooks = notebooks
+    if notebooks is None:
+        notebooks = NOTEBOOKS
 
     for nb in notebooks:
         run_notebook(nb, instrumented=instrumented, ignore_litellm=ignore_litellm)
@@ -213,8 +273,9 @@ if __name__ == "__main__":
     )
     parser.add_argument("--instrument", action="store_true")
     args = parser.parse_args()
+    notebooks = [Path.cwd() / nb for nb in args.notebooks]
 
     run_all(
-        notebooks=args.notebooks or None,
+        notebooks=notebooks or None,
         instrumented=args.instrument,
     )

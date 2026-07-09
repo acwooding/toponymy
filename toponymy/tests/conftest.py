@@ -270,8 +270,13 @@ def premade_topic_model_path():
     return file_path
 
 
+@pytest.fixture(scope="session")
+def notebook_output_dir(tmp_path_factory):
+    return tmp_path_factory.mktemp("nb_outputs")
+
+
 @pytest.fixture(scope="function")
-def notebook_testing_env():
+def notebook_testing_env(notebook_output_dir):
     """
     Sets/unsets the NOTEBOOK_TESTING environment variable to signal
     notebook_test_replacement decorator, and sets/unsets the OPENAI_API_KEY
@@ -279,9 +284,11 @@ def notebook_testing_env():
     """
     old = os.environ.get("NOTEBOOK_TESTING")
     old_openai = os.environ.get("OPENAI_API_KEY")
+    old_output_dir = os.environ.get("NB_TEST_OUTPUT_DIR")
 
     os.environ["NOTEBOOK_TESTING"] = "true"
     os.environ["OPENAI_API_KEY"] = "notarealkey"
+    os.environ["NB_TEST_OUTPUT_DIR"] = str(notebook_output_dir)
 
     try:
         yield
@@ -294,3 +301,7 @@ def notebook_testing_env():
             os.environ.pop("OPENAI_API_KEY", None)
         else:
             os.environ["OPENAI_API_KEY"] = old_openai
+        if old_output_dir is None:
+            os.environ.pop("NB_TEST_OUTPUT_DIR", None)
+        else:
+            os.environ["NB_TEST_OUTPUT_DIR"] = old_output_dir
