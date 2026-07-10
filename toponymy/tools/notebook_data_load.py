@@ -9,6 +9,16 @@ from toponymy.tools.notebook_test_helpers import notebook_test_replacement, exam
 
 logger = logging.getLogger(__name__)
 
+HF_URL_NEWSGROUPS = (
+    "hf://datasets/lmcinnes/20newsgroups_embedded/data/train-00000-of-00001.parquet"
+)
+HF_URL_ARXIV_CT = (
+    "hf://datasets/lmcinnes/arxiv_category_theory/data/train-00000-of-00001.parquet"
+)
+HF_URL_ARXIV_ML = (
+    "hf://datasets/lmcinnes/arxiv_ml/data/train-00000-of-00008-f3c9b137f969d545.parquet"
+)
+
 _output_dir_cache = None
 
 
@@ -73,9 +83,7 @@ def _load_newsgroups(use_small: bool = False) -> pd.DataFrame:
         # Equivalent to df.sample(n=150, random_state=33).reset_index(drop=True)
         # Use bundled version for PR testing to avoid network dependency
         return pd.read_parquet(examples_dir() / "20newsgroups_embedded_150.parquet")
-    df = pd.read_parquet(
-        "hf://datasets/lmcinnes/20newsgroups_embedded/data/train-00000-of-00001.parquet"
-    )
+    df = pd.read_parquet(HF_URL_NEWSGROUPS)
     return df
 
 
@@ -206,9 +214,7 @@ def load_bundled_arxiv(
 
 
 def _load_arxiv_ct(use_small=False):
-    df = pd.read_parquet(
-        "hf://datasets/lmcinnes/arxiv_category_theory/data/train-00000-of-00001.parquet"
-    )
+    df = pd.read_parquet(HF_URL_ARXIV_CT)
 
     if use_small:
         ## Needs 4 cluster layers in how_toponymy_works notebook
@@ -232,9 +238,7 @@ def load_arxiv_ct(use_small=False):
 
 
 def _load_arxiv_ml(use_small=False):
-    df = pd.read_parquet(
-        "hf://datasets/lmcinnes/arxiv_ml/data/train-00000-of-00008-f3c9b137f969d545.parquet"
-    )
+    df = pd.read_parquet(HF_URL_ARXIV_ML)
 
     if use_small:
         # needs at least 129 keyphrases -> keyphrases[128] in keyphrases.ipynb
