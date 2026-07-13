@@ -1,23 +1,26 @@
 # conftest.py
-from pathlib import Path
 
-import numpy as np
-import pandas as pd
-import os
-import json
-import umap
-import pytest
+from pathlib import Path
 import httpx
+import json
+import litellm
+import logging
+import numpy as np
+import os
+import pandas as pd
+import psutil
+import pytest
+import requests
+import shutil
 import subprocess
 import time
-import logging
+import umap
 
 from sentence_transformers import SentenceTransformer
 from toponymy.llm_wrappers import HuggingFaceNamer, AsyncHuggingFaceNamer
 from toponymy.clustering import centroids_from_labels, ToponymyClusterer
 from toponymy.tools.notebook_test_helpers import OLLAMA_CI_MODEL
 from toponymy.tests.helpers.llm_test_config import make_mock_data
-import litellm
 
 logger = logging.getLogger(__name__)
 
@@ -72,39 +75,85 @@ def ollama_has_model(model_or_family: str) -> bool:
         return False
 
 
-def ollama_running() -> bool:
-    """Check if Ollama is installed and if the service is available. If not try to start it for testing."""
+def _ollama_service_up() -> bool:
+    try:
+        response = httpx.get("http://localhost:11434/api/version", timeout=2)
+        response.raise_for_status()
+        return True
+    except Exception:
+        return False
+
+
+@pytest.fixture(scope="session")
+def _ollama_sufficient_resources():
+    """Skip tests if the machine doesn't have enough free memory/disk for Ollama.
+
+    Requirements are relaxed in CI environments.
+    """
+
+    is_ci = (
+        os.getenv("CI", "").lower() == "true"
+        or os.getenv("AZURE_PIPELINES", "").lower() == "true"
+    )
+
+    min_memory_gb = 3.0 if is_ci else 4.0
+    min_disk_gb = 1.5 if is_ci else 2.0
+
+    available_memory = psutil.virtual_memory().available / (1024**3)
+    available_disk = shutil.disk_usage("/tmp").free / (1024**3)
+
+    if available_memory < min_memory_gb:
+        pytest.skip(
+            f"Insufficient memory for Ollama test: {available_memory:.1f}GB < {min_memory_gb}GB required"
+        )
+    if available_disk < min_disk_gb:
+        pytest.skip(
+            f"Insufficient disk space for Ollama test: {available_disk:.1f}GB < {min_disk_gb}GB required"
+        )
+
+
+@pytest.fixture(scope="session")
+def ollama_running(_ollama_sufficient_resources) -> bool:
+    """Check if Ollama is installed and if the service is available. Try
+    to start `ollama serve` if it isn't already running, and tear it
+    down afterward -- but only if this fixture is what started it.
+    """
     try:
         subprocess.run(["ollama", "--version"], capture_output=True, check=True)
     except (subprocess.CalledProcessError, FileNotFoundError):
         logger.warning("Ollama not installed")
-        return False
+        yield False
+        return
 
-    try:
-        response = httpx.get("http://localhost:11434/api/version", timeout=2)
-        response.raise_for_status()
-        service_running = True
-    except:
-        service_running = False
+    started_process: subprocess.Popen | None = None
 
-    if not service_running:
+    if not _ollama_service_up():
         try:
-            ollama_process = subprocess.Popen(
+            started_process = subprocess.Popen(
                 ["ollama", "serve"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
             )
             time.sleep(3)
 
-            try:
-                response = httpx.get("http://localhost:11434/api/version", timeout=2)
-                response.raise_for_status()
-            except:
-                ollama_process.terminate()
+            if not _ollama_service_up():
+                started_process.terminate()
+                started_process.wait(timeout=5)
                 logger.warning("Could not start Ollama service for testing")
-                return False
-        except:
+                yield False
+                return
+        except Exception:
             logger.warning("Could not start Ollama service for testing")
-            return False
-    return True
+            yield False
+            return
+    yield True
+
+    if started_process is not None:
+        logger.info("Stopping Ollama service that was started for testing")
+        started_process.terminate()
+        try:
+            started_process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            started_process.kill()
+            started_process.wait()
 
 
 @pytest.fixture

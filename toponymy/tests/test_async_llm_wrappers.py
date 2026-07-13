@@ -374,14 +374,15 @@ def test_async_azureai_namer_old_env_var_maps_to_api_key(monkeypatch):
 
 
 # AsyncOllama Tests
-@pytest.mark.external
 @pytest.mark.asyncio
-async def test_ollama_connectivity_async_plain_canary():
+async def test_ollama_connectivity_async_plain_canary(ollama_running):
     """
-    Canary test verifying live async connectivity to the Azure AI API
+    Canary test verifying live async connectivity to the Ollama API
     using the plain prompt path.
     """
     model = get_test_ollama_model()
+    if not ollama_running:
+        pytest.skip("Ollama service is not available or failed to start")
     if not ollama_has_model(model):
         pytest.skip(f"{model} not available in local Ollama")
     namer = AsyncOllamaNamer(model=model)

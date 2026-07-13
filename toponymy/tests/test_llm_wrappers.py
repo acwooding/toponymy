@@ -485,8 +485,10 @@ def test_azureai_namer_old_env_var_maps_to_api_key(monkeypatch):
 
 
 # Ollama Tests
-def test_ollama_connectivity_plain_sync_canary():
+def test_ollama_connectivity_plain_sync_canary(ollama_running):
     model = get_test_ollama_model()
+    if not ollama_running:
+        pytest.skip("Ollama service is not available or failed to start")
     if not ollama_has_model(model):
         pytest.skip(f"{model} not available in local Ollama")
     namer = OllamaNamer(model=model)

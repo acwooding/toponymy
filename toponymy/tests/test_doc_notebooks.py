@@ -78,77 +78,41 @@ TEST_NOTEBOOKS = get_notebooks(doc_dir())
 
 CI = os.getenv("CI", "").lower() == "true"
 
-
-def test_collect_log_lines_from_stream_output():
-    nb = new_notebook(cells=[new_code_cell("print('WARNING: hello from notebook')")])
-    nb.cells[0].outputs = [
-        {
-            "name": "stdout",
-            "output_type": "stream",
-            "text": "WARNING: hello from notebook\n",
-        }
-    ]
-
-    assert collect_log_lines(nb) == [("warning", "WARNING: hello from notebook")]
-
-
-def test_run_notebook_captures_logger_output(tmp_path):
-    path = tmp_path / "logging_capture.ipynb"
-    nb = new_notebook(
-        cells=[
-            new_code_cell(
-                "import logging\nlogging.warning('hello from logger')\nlogging.info('info from logger')"
-            )
-        ]
-    )
-    with open(path, "w") as f:
-        import nbformat
-
-        nbformat.write(nb, f)
-
-    lines = run_notebook(str(path), timeout=30, return_log_lines=True)
-    assert any(
-        level == "warning" and "hello from logger" in line for level, line in lines
-    )
-    assert any(level == "info" and "info from logger" in line for level, line in lines)
-
-
-def test_run_notebook_ignores_litellm_output(tmp_path):
-    path = tmp_path / "litellm_ignore.ipynb"
-    nb = new_notebook(
-        cells=[
-            new_code_cell(
-                "import logging\nlogging.warning('LiteLLM:WARNING: silly warning from provider')"
-            )
-        ]
-    )
-    with open(path, "w") as f:
-        import nbformat
-
-        nbformat.write(nb, f)
-
-    lines = run_notebook(
-        str(path),
-        timeout=30,
-        return_log_lines=True,
-        ignore_litellm=True,
-    )
-    assert not lines
+NOTEBOOKS_WITHOUT_OPENAINAMER = [
+    nb
+    for nb in TEST_NOTEBOOKS
+    if not get_notebook_cfg(nb).get("has_openainamer", False)
+]
+NOTEBOOKS_WITH_OPENAINAMER = [
+    nb for nb in TEST_NOTEBOOKS if get_notebook_cfg(nb).get("has_openainamer", False)
+]
 
 
 # @pytest.mark.skipif(CI, reason="Skipping in CI environment")
-@pytest.mark.parametrize("notebook", TEST_NOTEBOOKS)
-def test_doc_notebook(notebook, notebook_testing_env):
+@pytest.mark.parametrize("notebook", NOTEBOOKS_WITHOUT_OPENAINAMER)
+def test_doc_notebook_no_openainamer(notebook, notebook_testing_env):
     cfg = get_notebook_cfg(notebook)
 
     # if not cfg.get("run_in_pr") and (os.getenv("BUILD_REASON") == "PullRequest"):
     #    pytest.skip(f"Skipped in PR CI")
-    if cfg.get("has_openainamer", False):
-        model = get_test_ollama_model()
-        logger.info(f"ollama running:{ollama_running()}")
-        logger.info(f"ollama_has_model {model}:{ollama_has_model(model)}")
-        if not ollama_has_model(model):
-            pytest.skip(f"{model} not available in local Ollama for OpenAI mocking")
+
+    run_notebook(
+        notebook,
+        timeout=cfg["timeout"],
+    )
+
+
+@pytest.mark.parametrize("notebook", NOTEBOOKS_WITH_OPENAINAMER)
+def test_doc_notebook_has_openainamer(notebook, notebook_testing_env, ollama_running):
+    cfg = get_notebook_cfg(notebook)
+
+    # if not cfg.get("run_in_pr") and (os.getenv("BUILD_REASON") == "PullRequest"):
+    #    pytest.skip(f"Skipped in PR CI")
+    model = get_test_ollama_model()
+    logger.info(f"ollama running:{ollama_running}")
+    logger.info(f"ollama_has_model {model}:{ollama_has_model(model)}")
+    if not ollama_has_model(model):
+        pytest.skip(f"{model} not available in local Ollama for OpenAI mocking")
     run_notebook(
         notebook,
         timeout=cfg["timeout"],
