@@ -2261,7 +2261,7 @@ def AsyncCohereNamer(
 
 
 def TogetherNamer(
-    model: str = "meta-llama/Meta-Llama-3-8B-Instruct-Lite",
+    model: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo",
     api_key: str | None = None,
     api_base: str | None = None,
     llm_specific_instructions: str | None = None,
@@ -2277,8 +2277,8 @@ def TogetherNamer(
     Parameters
     ----------
     model : str, optional
-        Together AI model to use. Default is "meta-llama/Meta-Llama-3-8B-Instruct-Lite".
-        May be in LiteLLM format ("together_ai/meta-llama/Meta-Llama-3-8B-Instruct-Lite")
+        Together AI model to use. Default is "meta-llama/Llama-3.3-70B-Instruct-Turbo".
+        May be in LiteLLM format ("together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo")
     api_key : str, optional
         Together AI API key. Falls back to the TOGETHERAI_API_KEY environment variable.
     api_base : str, optional
@@ -2320,7 +2320,7 @@ def TogetherNamer(
 
     Using a different model::
 
-        namer = TogetherNamer(model="meta-llama/Meta-Llama-3-8B-Instruct-Lite", api_key="my-api-key")
+        namer = TogetherNamer(model="meta-llama/Llama-3.3-70B-Instruct-Turbo", api_key="my-api-key")
 
     Using a Together AI-compatible local server::
 
@@ -2352,7 +2352,7 @@ def TogetherNamer(
 
 
 def AsyncTogether(
-    model: str = "meta-llama/Meta-Llama-3-8B-Instruct-Lite",
+    model: str = "meta-llama/Llama-3.3-70B-Instruct-Turbo",
     api_key: str | None = None,
     api_base: str | None = None,
     llm_specific_instructions: str | None = None,
@@ -2369,8 +2369,8 @@ def AsyncTogether(
     Parameters
     ----------
     model : str, optional
-        Together AI model to use. Default is "meta-llama/Meta-Llama-3-8B-Instruct-Lite". Must be in LiteLLM format ("together_ai/meta-llama/Meta-Llama-3-8B-Instruct-Lite")
-        or bare Together AI format ("meta-llama/Meta-Llama-3-8B-Instruct-Lite") — both are accepted.
+        Together AI model to use. Default is "meta-llama/Llama-3.3-70B-Instruct-Turbo". Must be in LiteLLM format ("together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo")
+        or bare Together AI format ("meta-llama/Llama-3.3-70B-Instruct-Turbo") — both are accepted.
     api_key : str, optional
         Together AI API key. Falls back to the TOGETHERAI_API_KEY environment variable.
     api_base : str, optional
@@ -2416,7 +2416,7 @@ def AsyncTogether(
 
     Using a different model::
 
-        namer = AsyncTogether(model="meta-llama/Meta-Llama-3-8B-Instruct-Lite", api_key="my-api-key")
+        namer = AsyncTogether(model="meta-llama/Llama-3.3-70B-Instruct-Turbo", api_key="my-api-key")
 
     Using a Together AI-compatible local server::
 
