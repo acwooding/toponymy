@@ -233,7 +233,7 @@ NOTEBOOKS = [
 def run_all(
     notebooks: list[str] | None = None,
     instrumented: bool = False,
-    ignore_litellm: bool = False,
+    ignore_litellm: bool = True,
 ) -> None:
     """
     Execute a sequence of notebooks with optional logging instrumentation.
@@ -247,7 +247,7 @@ def run_all(
     instrumented : bool, optional
         If True, use instrumented logging for each notebook. Default is False.
     ignore_litellm : bool, optional
-        If True, exclude LiteLLM output lines from logging. Default is False.
+        If True, exclude LiteLLM output lines from logging. Default is True.
 
     Returns
     -------
@@ -272,10 +272,18 @@ if __name__ == "__main__":
         help="Notebook(s) to run. If omitted, runs all preset NOTEBOOKS.",
     )
     parser.add_argument("--instrument", action="store_true")
+    parser.add_argument(
+        "--allow-litellm-logs",
+        action="store_true",
+        help="Include LiteLLM log lines in output (default: ignored)",
+    )
+
     args = parser.parse_args()
+
     notebooks = [Path.cwd() / nb for nb in args.notebooks]
 
     run_all(
         notebooks=notebooks or None,
         instrumented=args.instrument,
+        ignore_litellm=not args.allow_litellm_logs,
     )

@@ -60,12 +60,51 @@ stages:
   - stage: RunAllTests
     displayName: Run test suite
     jobs:
+    - job: DetectChangedNotebooks
+      condition: ne(variables['Build.Reason'], 'Schedule')
+      pool:
+        vmImage: 'ubuntu-latest'
+      steps:
+        - checkout: self
+        - bash: |
+            set -e
+            if [ "$(Build.Reason)" != "PullRequest" ]; then
+              echo "##vso[task.setvariable variable=CHANGED_NOTEBOOKS;isOutput=true]"
+              exit 0
+            fi
+
+            PR_NUMBER=$(System.PullRequest.PullRequestNumber)
+            REPO=$(Build.Repository.Name)
+
+            echo "PR_NUMBER=$PR_NUMBER"
+            echo "REPO=$REPO"
+
+            RESPONSE=$(curl -s \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/TutteInstitute/toponymy/pulls/$PR_NUMBER/files?per_page=100")
+
+            echo "--- Raw response ---"
+            echo "$RESPONSE"
+
+            CHANGED=$(echo "$RESPONSE" \
+            | jq -r '.[].filename' \
+            | grep '\.ipynb$' \
+            | xargs -n1 basename \
+            | paste -sd, -)
+
+            echo "Changed notebooks: $CHANGED"
+            echo "##vso[task.setvariable variable=CHANGED_NOTEBOOKS;isOutput=true]$CHANGED"
+          displayName: 'Detect changed notebooks in PR'
+
     - job: Tests
-      timeoutInMinutes: 90   # default is usually 60
+      timeoutInMinutes: 150   # default is usually 60
+      dependsOn: DetectChangedNotebooks
       pool:
         vmImage: $(imageName)
       workspace:
         clean: all  # Clean workspace before build to free disk space
+      variables:
+        CHANGED_NOTEBOOKS: $[ dependencies.DetectChangedNotebooks.outputs['detect.CHANGED_NOTEBOOKS'] ]
       strategy:
         matrix:
           linux_py310:
@@ -110,7 +149,7 @@ stages:
           includeReleaseCandidates: ${{ parameters.includeReleaseCandidates }}
 
     - job: ExternalTests
-      timeoutInMinutes: 90
+      timeoutInMinutes: 30
       pool:
         vmImage: $(imageName)
       workspace:
