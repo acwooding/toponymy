@@ -19,7 +19,7 @@ import umap
 from sentence_transformers import SentenceTransformer
 from toponymy.llm_wrappers import HuggingFaceNamer, AsyncHuggingFaceNamer
 from toponymy.clustering import centroids_from_labels, ToponymyClusterer
-from toponymy.tools.notebook_test_helpers import OLLAMA_CI_MODEL
+from toponymy.tools.notebook_test_helpers import OLLAMA_CI_MODELS
 from toponymy.tests.helpers.llm_test_config import make_mock_data
 
 logger = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ def async_llm():
     # )
 
 
-def ollama_has_model(model_or_family: str) -> bool:
+def ollama_has_model(model_or_family: str, family=False) -> bool:
     """Check if the specified Ollama model or family is available locally."""
     try:
         response = httpx.get("http://localhost:11434/api/tags", timeout=2.0)
@@ -64,12 +64,9 @@ def ollama_has_model(model_or_family: str) -> bool:
 
         models = [m["name"] for m in response.json().get("models", [])]
 
-        # CI case: exact match
-        if model_or_family == OLLAMA_CI_MODEL:
-            return any(m == OLLAMA_CI_MODEL for m in models)
-
-        # local case: family match (e.g. llama3.2:*)
-        return any(m.startswith(model_or_family + ":") for m in models)
+        if family:
+            return any(m.startswith(model_or_family + ":") for m in models)
+        return any(m == model_or_family for m in models)
 
     except Exception:
         return False

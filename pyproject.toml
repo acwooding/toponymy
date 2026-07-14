@@ -50,6 +50,7 @@ addopts = "-m 'not external'"
 filterwarnings = [
     "ignore:coroutine '.*' was never awaited:RuntimeWarning:litellm",
 ]
+log_level = "INFO"
 
 [tool.setuptools]
 zip-safe = false

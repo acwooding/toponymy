@@ -603,7 +603,7 @@ def test_together_namer_returns_litellm_namer():
 def test_together_namer_default():
     namer = TogetherNamer()
 
-    assert namer.model == "together_ai/meta-llama/Meta-Llama-3-8B-Instruct-Lite"
+    assert namer.model == "together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo"
 
 
 @pytest.mark.filterwarnings("ignore:TogetherNamer is deprecated")

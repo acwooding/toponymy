@@ -90,10 +90,8 @@ def should_run_in_pr(notebook: str, config=None) -> bool:
         config = NOTEBOOK_CONFIG
     if is_pr_build():
         raw = os.getenv("CHANGED_NOTEBOOKS", "")
-        logger.info(f"PR build detected. raw CHANGED_NOTEBOOKS: {raw}")
         changed_notebooks = {nb.strip() for nb in raw.split(",") if nb.strip()}
-        logger.info(f"PR build detected. Changed notebooks: {changed_notebooks}")
-        if notebook in changed_notebooks:
+        if Path(notebook).name in changed_notebooks:
             return True
         return get_notebook_cfg(notebook, config)["run_in_pr"]
     return True
@@ -122,17 +120,25 @@ def active_notebook_list(
     else:
         active_list = notebook_list
     if has_openainamer:
-        return [
+        active_list = [
             nb
             for nb in active_list
             if get_notebook_cfg(nb, config).get("has_openainamer", True)
         ]
+        logger.info(
+            f"Active notebooks with OpenAINamer: {[Path(nb).name for nb in active_list]}"
+        )
+        return active_list
     else:
-        return [
+        active_list = [
             nb
             for nb in active_list
             if not get_notebook_cfg(nb, config).get("has_openainamer", True)
         ]
+        logger.info(
+            f"Active notebooks without OpenAINamer: {[Path(nb).name for nb in active_list]}"
+        )
+        return active_list
 
 
 @pytest.mark.parametrize(
@@ -187,6 +193,24 @@ def test_config():
             "run_in_pr": True,
         },
     }
+
+
+@pytest.fixture
+def notebooks(tmp_path):
+    """Provide a reusable, fully-qualified set of fake notebook paths for testing.
+
+    Uses tmp_path so paths look like real filesystem locations, without
+    needing actual notebook files to exist on disk for these unit tests.
+    """
+    names = [
+        "oan_true_pr_true.ipynb",
+        "oan_true_pr_false.ipynb",
+        "oan_false_pr_false.ipynb",
+        "oan_false_pr_true.ipynb",
+        "unknown_notebook.ipynb",
+    ]
+    base = tmp_path / "notebooks"
+    return [base / name for name in names]
 
 
 class TestActiveNotebookListLogic:
@@ -247,20 +271,16 @@ class TestActiveNotebookListLogic:
         assert should_run_in_pr("oan_false_pr_false.ipynb")
 
     def test_active_notebook_list_non_pr_has_openainamer_false(
-        self, monkeypatch, test_config
+        self, monkeypatch, test_config, notebooks
     ):
         monkeypatch.setenv("BUILD_REASON", "Manual")
 
-        notebooks = [
-            "oan_true_pr_true.ipynb",
-            "oan_true_pr_false.ipynb",
-            "oan_false_pr_false.ipynb",
-            "oan_false_pr_true.ipynb",
-            "unknown_notebook.ipynb",
+        result = [
+            nb.name
+            for nb in active_notebook_list(
+                notebooks, has_openainamer=False, config=test_config
+            )
         ]
-        result = active_notebook_list(
-            notebooks, has_openainamer=False, config=test_config
-        )
 
         assert "oan_false_pr_false.ipynb" in result
         assert "oan_false_pr_true.ipynb" in result
@@ -269,20 +289,16 @@ class TestActiveNotebookListLogic:
         assert "unknown_notebook.ipynb" not in result
 
     def test_active_notebook_list_non_pr_has_openainamer_true(
-        self, monkeypatch, test_config
+        self, monkeypatch, test_config, notebooks
     ):
         monkeypatch.setenv("BUILD_REASON", "Manual")
 
-        notebooks = [
-            "oan_true_pr_true.ipynb",
-            "oan_true_pr_false.ipynb",
-            "oan_false_pr_false.ipynb",
-            "oan_false_pr_true.ipynb",
-            "unknown_notebook.ipynb",
+        result = [
+            nb.name
+            for nb in active_notebook_list(
+                notebooks, has_openainamer=True, config=test_config
+            )
         ]
-        result = active_notebook_list(
-            notebooks, has_openainamer=True, config=test_config
-        )
 
         assert "oan_false_pr_false.ipynb" not in result
         assert "oan_false_pr_true.ipynb" not in result
@@ -291,23 +307,18 @@ class TestActiveNotebookListLogic:
         assert "unknown_notebook.ipynb" in result
 
     def test_active_notebook_list_pr_build_default_filtering(
-        self, monkeypatch, test_config
+        self, monkeypatch, test_config, notebooks
     ):
         """Test that PR builds filter by run_in_pr flag first."""
         monkeypatch.setenv("BUILD_REASON", "PullRequest")
         monkeypatch.delenv("CHANGED_NOTEBOOKS", raising=False)
 
-        notebooks = [
-            "oan_true_pr_true.ipynb",
-            "oan_true_pr_false.ipynb",
-            "oan_false_pr_false.ipynb",
-            "oan_false_pr_true.ipynb",
-            "unknown_notebook.ipynb",
+        result = [
+            nb.name
+            for nb in active_notebook_list(
+                notebooks, has_openainamer=True, config=test_config
+            )
         ]
-
-        result = active_notebook_list(
-            notebooks, has_openainamer=True, config=test_config
-        )
 
         assert "oan_false_pr_false.ipynb" not in result
         assert "oan_false_pr_true.ipynb" not in result
@@ -316,28 +327,39 @@ class TestActiveNotebookListLogic:
         assert "unknown_notebook.ipynb" in result
 
     def test_active_notebook_list_includes_pr_changed_notebooks(
-        self, monkeypatch, test_config
+        self, monkeypatch, test_config, notebooks
     ):
         monkeypatch.setenv("BUILD_REASON", "PullRequest")
         monkeypatch.setenv("CHANGED_NOTEBOOKS", "oan_false_pr_false.ipynb")
 
-        notebooks = [
-            "oan_true_pr_true.ipynb",
-            "oan_true_pr_false.ipynb",
-            "oan_false_pr_false.ipynb",
-            "oan_false_pr_true.ipynb",
-            "unknown_notebook.ipynb",
+        result = [
+            nb.name
+            for nb in active_notebook_list(
+                notebooks, has_openainamer=False, config=test_config
+            )
         ]
-
-        result = active_notebook_list(
-            notebooks, has_openainamer=False, config=test_config
-        )
 
         assert "oan_false_pr_false.ipynb" in result
         assert "oan_false_pr_true.ipynb" in result
         assert "oan_true_pr_true.ipynb" not in result
         assert "oan_true_pr_false.ipynb" not in result
         assert "unknown_notebook.ipynb" not in result
+
+    def test_active_notebook_list_ignores_changed_notebook_not_in_input(
+        self, monkeypatch, test_config, notebooks
+    ):
+        monkeypatch.setenv("BUILD_REASON", "PullRequest")
+        monkeypatch.setenv("CHANGED_NOTEBOOKS", "deleted.ipynb")
+
+        result = [
+            nb.name
+            for nb in active_notebook_list(
+                notebooks, has_openainamer=True, config=test_config
+            )
+        ]
+
+        assert "deleted.ipynb" not in result
+        assert result == ["oan_true_pr_true.ipynb", "unknown_notebook.ipynb"]
 
     def test_active_notebook_list_empty_list(self, monkeypatch, test_config):
         monkeypatch.setenv("BUILD_REASON", "Manual")

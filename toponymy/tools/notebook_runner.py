@@ -234,6 +234,7 @@ def run_all(
     notebooks: list[str] | None = None,
     instrumented: bool = False,
     ignore_litellm: bool = True,
+    kernel_name: str = "toponymy-uv",
 ) -> None:
     """
     Execute a sequence of notebooks with optional logging instrumentation.
@@ -248,6 +249,8 @@ def run_all(
         If True, use instrumented logging for each notebook. Default is False.
     ignore_litellm : bool, optional
         If True, exclude LiteLLM output lines from logging. Default is True.
+    kernel_name : str, optional
+        Jupyter kernel to use for executing the notebooks. Default is "toponymy-uv".
 
     Returns
     -------
@@ -257,7 +260,12 @@ def run_all(
         notebooks = NOTEBOOKS
 
     for nb in notebooks:
-        run_notebook(nb, instrumented=instrumented, ignore_litellm=ignore_litellm)
+        run_notebook(
+            nb,
+            instrumented=instrumented,
+            ignore_litellm=ignore_litellm,
+            kernel_name=kernel_name,
+        )
 
 
 if __name__ == "__main__":
@@ -277,6 +285,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Include LiteLLM log lines in output (default: ignored)",
     )
+    parser.add_argument(
+        "--kernel-name",
+        default="toponymy-uv",
+        help="Jupyter kernel to run notebooks with (default: toponymy-uv)",
+    )
 
     args = parser.parse_args()
 
@@ -286,4 +299,5 @@ if __name__ == "__main__":
         notebooks=notebooks or None,
         instrumented=args.instrument,
         ignore_litellm=not args.allow_litellm_logs,
+        kernel_name=args.kernel_name,
     )

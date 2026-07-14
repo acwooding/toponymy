@@ -1,12 +1,13 @@
 import functools
 from pathlib import Path
 import os
+import httpx
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 
 # Ollama test models
-OLLAMA_CI_MODEL = "qwen2.5:0.5b"
-OLLAMA_LOCAL_FAMILY = "llama3.2"
+OLLAMA_CI_MODELS = ["qwen2.5:0.5b", "qwen2:0.5b", "tinydolphin:1.1b"]
+OLLAMA_LOCAL_FAMILIES = ["llama3.2", "qwen2.5", "tinydolphin"]
 
 
 def doc_dir() -> Path:
@@ -21,7 +22,7 @@ def get_notebooks(doc_dir: Path) -> list[Path]:
     """
     Retrieve all non-test notebook files from a directory.
 
-    Recursively searches for .ipynb files and excludes those with "xxx" in the filename.
+    Searches for .ipynb files and excludes those with "xxx" in the filename.
 
     Parameters
     ----------
@@ -36,21 +37,28 @@ def get_notebooks(doc_dir: Path) -> list[Path]:
     return sorted(p for p in Path(doc_dir).glob("*.ipynb") if "xxx" not in p.name)
 
 
-def get_test_ollama_model() -> str:
+def get_test_ollama_model() -> str | None:
     """
-    Get the Ollama model name appropriate for the current testing environment.
-
-    Returns the CI-specific model when running in CI (faster, smaller model);
-    otherwise returns the local model family for development/testing.
-
-    Returns
-    -------
-    str
-        Ollama model identifier: OLLAMA_CI_MODEL if in CI, else OLLAMA_LOCAL_FAMILY.
+    Returns the first available ollama model for testing, or None if none available.
+    In CI, looks for exact matches from OLLAMA_CI_MODELS.
+    Locally, looks for family matches from OLLAMA_LOCAL_FAMILIES.
     """
+
+    response = httpx.get("http://localhost:11434/api/tags", timeout=2.0)
+    response.raise_for_status()
+    available = [m["name"] for m in response.json().get("models", [])]
+
     if os.getenv("CI", "").lower() in {"true", "1"}:
-        return OLLAMA_CI_MODEL
-    return OLLAMA_LOCAL_FAMILY
+        for model in OLLAMA_CI_MODELS:
+            if model in available:
+                return model
+    else:
+        for family in OLLAMA_LOCAL_FAMILIES:
+            match = next((m for m in available if m.startswith(family + ":")), None)
+            if match:
+                return match
+
+    return None
 
 
 def notebook_test_replacement(replacement):
