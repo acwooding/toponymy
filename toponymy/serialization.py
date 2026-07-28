@@ -4,6 +4,7 @@ import zipfile
 from pathlib import Path
 from copy import deepcopy
 from dataclasses import dataclass
+from functools import cached_property
 import base64
 
 import scipy.sparse as sp
@@ -62,6 +63,49 @@ class TopicModel:
         s += f" n_topics={n_topics})"
         return s
 
+    @cached_property
+    def topic_sizes(self):
+        """
+        Reconstruct topic_sizes from the topic_df.
+
+        Returns
+        -------
+        List[List[int]]
+            A list of lists where topic_sizes[i][j] is the size of cluster j in layer i.
+        """
+        if "size" not in self.topic_df.columns:
+            # Fallback: compute from cluster_layers if size column doesn't exist
+            topic_sizes = []
+            for layer_matrix in self.cluster_layers:
+                # Each column represents a cluster, sum to get cluster sizes
+                # Divide by 255 since we use 255 as the indicator value
+                if sp.issparse(layer_matrix):
+                    sizes = np.asarray(layer_matrix.sum(axis=0)).ravel().tolist()
+                else:
+                    sizes = layer_matrix.sum(axis=0).tolist()
+                topic_sizes.append([int(s // 255) for s in sizes])
+            return topic_sizes
+        
+        # Reconstruct from topic_df
+        # Only include layers that exist in cluster_layers (excluding root/parent layers)
+        num_layers = len(self.cluster_layers)
+        topic_sizes = [[] for _ in range(num_layers)]
+        
+        for layer_idx in range(num_layers):
+            layer_topics = self.topic_df[self.topic_df["layer"] == layer_idx].sort_values("cluster")
+            if len(layer_topics) > 0:
+                topic_sizes[layer_idx] = layer_topics["size"].tolist()
+            else:
+                # Fallback to computing from cluster_layers for this layer
+                layer_matrix = self.cluster_layers[layer_idx]
+                if sp.issparse(layer_matrix):
+                    sizes = np.asarray(layer_matrix.sum(axis=0)).ravel().tolist()
+                else:
+                    sizes = layer_matrix.sum(axis=0).tolist()
+                topic_sizes[layer_idx] = [int(s // 255) for s in sizes]
+        
+        return topic_sizes
+
     @classmethod
     def from_toponymy(cls, toponymy, document_df=None):
         cluster_layers = []
@@ -88,6 +132,7 @@ class TopicModel:
                         "layer": layer_idx,
                         "cluster": cluster,
                         "name": toponymy.topic_names_[layer_idx][cluster],
+                        "size": toponymy.topic_sizes_[layer_idx][cluster],
                         "keyphrases": toponymy.cluster_layers_[layer_idx].keyphrases[
                             cluster
                         ],

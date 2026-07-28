@@ -94,6 +94,8 @@ class Toponymy:
     topic_name_vectors_: List[np.array]
         A list of numpy arrays of shape=(number_of_topics, embedding_dimension) that represent the topic names of each object
         at each layer of the topic model.
+    topic_sizes_: List[List[int]]
+        A list of lists where topic_sizes_[i][j] is the number of objects in cluster j at layer i.
 
     """
 
@@ -166,6 +168,27 @@ class Toponymy:
             layer.exemplar_delimiters = self.exemplar_delimiters
             layer.show_progress_bar = self.show_progress_bars
             layer.verbose = self.verbose
+
+    def _compute_topic_sizes(self) -> List[List[int]]:
+        """
+        Compute the size of each cluster in each layer.
+
+        Returns
+        -------
+        List[List[int]]
+            A list of lists where topic_sizes[i][j] is the size of cluster j in layer i.
+        """
+        def cluster_size(cluster_label_array):
+            if cluster_label_array.min() < 0:
+                return np.bincount(cluster_label_array - cluster_label_array.min())[
+                    -cluster_label_array.min() :
+                ].tolist()
+            else:
+                return np.bincount(cluster_label_array).tolist()
+
+        return [
+            cluster_size(layer.cluster_labels) for layer in self.cluster_layers_
+        ]
 
     def fit(
         self,
@@ -379,6 +402,9 @@ class Toponymy:
                 )
             self.topic_name_vectors_[i] = layer.make_topic_name_vector()
 
+        # Compute and cache topic sizes for efficient access and serialization
+        self.topic_sizes_ = self._compute_topic_sizes()
+
         return self
 
     def fit_predict(
@@ -429,22 +455,11 @@ class Toponymy:
         TopicTree
             A representation of the topic tree (either html or string).
         """
-        check_is_fitted(self, ["cluster_tree_", "topic_names_", "topic_name_vectors_"])
+        check_is_fitted(self, ["cluster_tree_", "topic_names_", "topic_name_vectors_", "topic_sizes_"])
 
-        def cluster_size(cluster_label_array):
-            if cluster_label_array.min() < 0:
-                return np.bincount(cluster_label_array - cluster_label_array.min())[
-                    -cluster_label_array.min() :
-                ].tolist()
-            else:
-                return np.bincount(cluster_label_array).tolist()
-
-        topic_sizes = [
-            cluster_size(layer.cluster_labels) for layer in self.cluster_layers_
-        ]
         return TopicTree(
             self.cluster_tree_,
             self.topic_names_,
-            topic_sizes,
+            self.topic_sizes_,
             self.embedding_vectors_.shape[0],
         )
