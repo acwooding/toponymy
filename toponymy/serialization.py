@@ -11,6 +11,8 @@ import scipy.sparse as sp
 import pandas as pd
 import numpy as np
 
+from toponymy.topic_tree import TopicTree
+
 _SERIAL_VERSION = "0.1"
 
 
@@ -432,3 +434,28 @@ class TopicModel:
                 layer_names.append(cluster_name)
             all_names.append(layer_names)
         return all_names
+
+    def topic_tree(self, prune_duplicates=True, **kwargs):
+        """
+        Returns the topic tree with configurable options.
+
+        Parameters
+        ----------
+        prune_duplicates : bool, optional (default=True)
+            If True, prune duplicate children from the tree.
+        **kwargs
+            Additional keyword arguments to pass to TopicTree constructor.
+
+        Returns
+        -------
+        TopicTree
+            A representation of the topic tree (either html or string).
+        """
+        return TopicTree(
+            self.cluster_tree,
+            self.topic_names,
+            self.topic_sizes,
+            self.embedding_vectors.shape[0],
+            prune_duplicates=prune_duplicates,
+            **kwargs,
+        )

@@ -6,6 +6,7 @@ import pytest
 
 from toponymy import TopicModel, Toponymy, ToponymyClusterer, KeyphraseBuilder
 from toponymy.serialization import topic_uid
+from toponymy.topic_tree import TopicTree
 
 
 def is_equal(model1, model2):
@@ -204,6 +205,43 @@ def test_topic_names():
     assert model.topic_names == topics
 
 
+def test_topic_tree_property():
+    """Test that TopicModel.topic_tree() method returns a valid TopicTree."""
+    model = mock_data_model()
+    
+    # Get the topic tree
+    topic_tree = model.topic_tree()
+    
+    # Verify it's a TopicTree instance
+    assert isinstance(topic_tree, TopicTree)
+    
+    # Verify it has the correct attributes
+    assert topic_tree.tree == model.cluster_tree
+    assert topic_tree.topics == model.topic_names
+    assert topic_tree.topic_sizes == model.topic_sizes
+    assert topic_tree.n_objects == model.embedding_vectors.shape[0]
+    
+    # Verify it can be converted to string (print functionality)
+    tree_string = str(topic_tree)
+    assert "Topic tree:" in tree_string
+    assert "Topic A" in tree_string
+    assert "Topic B" in tree_string
+    assert "Subtopic" in tree_string
+    
+    # Verify it can be rendered to HTML
+    html_output = topic_tree._repr_html_()
+    assert '<div class="topic-tree">' in html_output
+    assert "Topic A" in html_output
+    assert "Topic B" in html_output
+    
+    # Verify print method works
+    topic_tree.print()  # Should not raise an exception
+    
+    # Test with prune_duplicates parameter
+    topic_tree_no_prune = model.topic_tree(prune_duplicates=False)
+    assert isinstance(topic_tree_no_prune, TopicTree)
+
+
 def test_from_toponymy(fitted_toponymy_newsgroups, premade_topic_model_path):
     """Test that TopicModel.from_toponymy correctly extracts all properties including topic_sizes."""
     toponymy, metadata = fitted_toponymy_newsgroups
@@ -222,6 +260,34 @@ def test_from_toponymy(fitted_toponymy_newsgroups, premade_topic_model_path):
     # Verify topic_sizes were properly serialized
     assert "size" in test_model.topic_df.columns, "Size column should exist in topic_df"
     assert test_model.topic_sizes == toponymy.topic_sizes_, "Topic sizes should match the original"
+
+
+def test_topic_tree_from_fitted_toponymy(fitted_toponymy_newsgroups):
+    """Test that topic_tree() method works with models created from fitted Toponymy."""
+    toponymy, metadata = fitted_toponymy_newsgroups
+    
+    # Create TopicModel from fitted Toponymy
+    model = TopicModel.from_toponymy(toponymy, document_df=metadata)
+    
+    # Get the topic tree
+    topic_tree = model.topic_tree()
+    
+    # Verify it's a TopicTree instance
+    assert isinstance(topic_tree, TopicTree)
+    
+    # Verify it has the correct number of objects
+    assert topic_tree.n_objects == model.embedding_vectors.shape[0]
+    
+    # Verify topics match
+    assert topic_tree.topics == model.topic_names
+    
+    # Verify it can be converted to string
+    tree_string = str(topic_tree)
+    assert "Topic tree:" in tree_string
+    
+    # Verify it can be rendered to HTML
+    html_output = topic_tree._repr_html_()
+    assert '<div class="topic-tree">' in html_output
 
 
 def test_round_trip_zip_with_size_column():
