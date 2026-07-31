@@ -87,14 +87,16 @@ class TopicModel:
                     sizes = layer_matrix.sum(axis=0).tolist()
                 topic_sizes.append([int(s // 255) for s in sizes])
             return topic_sizes
-        
+
         # Reconstruct from topic_df
         # Only include layers that exist in cluster_layers (excluding root/parent layers)
         num_layers = len(self.cluster_layers)
         topic_sizes = [[] for _ in range(num_layers)]
-        
+
         for layer_idx in range(num_layers):
-            layer_topics = self.topic_df[self.topic_df["layer"] == layer_idx].sort_values("cluster")
+            layer_topics = self.topic_df[
+                self.topic_df["layer"] == layer_idx
+            ].sort_values("cluster")
             if len(layer_topics) > 0:
                 topic_sizes[layer_idx] = layer_topics["size"].tolist()
             else:
@@ -105,7 +107,7 @@ class TopicModel:
                 else:
                     sizes = layer_matrix.sum(axis=0).tolist()
                 topic_sizes[layer_idx] = [int(s // 255) for s in sizes]
-        
+
         return topic_sizes
 
     @classmethod
