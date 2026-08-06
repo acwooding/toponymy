@@ -10,6 +10,7 @@ import base64
 import scipy.sparse as sp
 import pandas as pd
 import numpy as np
+import shutil
 
 from toponymy.topic_tree import TopicTree
 
@@ -319,16 +320,20 @@ class TopicModel:
             cluster_layers=matrices,
         )
 
-    def to_lance(self, path: str):
+    def to_lance(self, path: str, overwrite: bool = False):
 
         import lance
         import pyarrow as pa
 
         path = Path(path)
+
         if path.exists():
-            raise FileExistsError(
-                f"{path} already exists. Remove it first or choose a different path."
-            )
+            if not overwrite:
+                raise FileExistsError(
+                    f"{path} already exists. Remove it first or choose a different path."
+                )
+            shutil.rmtree(path)
+
         path.mkdir(parents=True)
 
         # --- documents.lance ---

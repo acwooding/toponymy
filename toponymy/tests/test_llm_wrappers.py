@@ -22,7 +22,8 @@ from toponymy.llm_wrappers import (
     ReplicateNamer,
     GoogleGeminiNamer,
 )
-from conftest import is_ollama_model_available
+from conftest import ollama_has_model
+from toponymy.tools.notebook_test_helpers import get_test_ollama_model
 
 from toponymy.tests.helpers.llm_test_config import (
     validate_cluster_names,
@@ -30,6 +31,7 @@ from toponymy.tests.helpers.llm_test_config import (
     LITELLM_PROVIDER_CASES,
     SUPPORTED_SYNC_DEBUG_CALLBACK_NAMERS,
     UNSUPPORTED_SYNC_DEBUG_CALLBACK_NAMERS,
+    SYNC_LITELLM_NAMERS,
 )
 from toponymy.tests.helpers.errors import (
     LITELLM_FAIL_FAST,
@@ -483,9 +485,11 @@ def test_azureai_namer_old_env_var_maps_to_api_key(monkeypatch):
 
 
 # Ollama Tests
-def test_ollama_connectivity_plain_sync_canary():
-    model = "llama3.2"
-    if not is_ollama_model_available(model):
+def test_ollama_connectivity_plain_sync_canary(ollama_running):
+    model = get_test_ollama_model()
+    if not ollama_running:
+        pytest.skip("Ollama service is not available or failed to start")
+    if not ollama_has_model(model):
         pytest.skip(f"{model} not available in local Ollama")
     namer = OllamaNamer(model=model)
     result = namer.connectivity_status()
@@ -599,7 +603,7 @@ def test_together_namer_returns_litellm_namer():
 def test_together_namer_default():
     namer = TogetherNamer()
 
-    assert namer.model == "together_ai/meta-llama/Meta-Llama-3-8B-Instruct-Lite"
+    assert namer.model == "together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo"
 
 
 @pytest.mark.filterwarnings("ignore:TogetherNamer is deprecated")
@@ -944,7 +948,44 @@ def test_litellm_system_prompt_probe_success_caches_true(
     assert litellm_wrapper._system_prompt_capability is True
 
 
-# Test max_tokens configuration
+def test_litellm_namer_temperature_override_is_used(litellm_wrapper, mock_data):
+    wrapper = LiteLLMNamer(
+        api_key="dummy",
+        model="openai/gpt-4o-mini",
+        temperature_override=0.0,
+    )
+    response = MockLLMResponse.create_chat_response(mock_data["valid_topic_name"])
+
+    with patch("litellm.completion", return_value=response) as mock_completion:
+        result = wrapper.generate_topic_name("test prompt", temperature=0.9)
+
+    assert mock_completion.call_args.kwargs["temperature"] == 0.0
+    validate_topic_name(result)
+
+
+@pytest.mark.parametrize("namer_cls, kwargs", SYNC_LITELLM_NAMERS)
+def test_namer_temperature_override_passthrough(namer_cls, kwargs):
+    """Parametrized smoke test: temperature_override is forwarded to all factory namers."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", FutureWarning)
+        namer = namer_cls(temperature_override=0.25, **kwargs)
+
+    assert isinstance(namer, LiteLLMNamer)
+    assert namer.temperature_override == 0.25
+
+
+# Test max_tokens
+@pytest.mark.parametrize("namer_cls, kwargs", SYNC_LITELLM_NAMERS)
+def test_namer_custom_max_tokens_passthrough(namer_cls, kwargs):
+    """Parametrized test: custom max_tokens values are respected by factory namers."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", FutureWarning)
+        namer = namer_cls(
+            max_tokens_topic_name=300, max_tokens_cluster_names=1200, **kwargs
+        )
+
+    assert namer.max_tokens_topic_name == 300
+    assert namer.max_tokens_cluster_names == 1200
 
 
 def test_litellm_namer_default_max_tokens():
@@ -963,52 +1004,6 @@ def test_litellm_namer_custom_max_tokens():
     )
     assert namer.max_tokens_topic_name == 256
     assert namer.max_tokens_cluster_names == 2048
-
-
-def test_openai_namer_default_max_tokens():
-    """Test that OpenAINamer has correct default max_tokens values"""
-    namer = OpenAINamer()
-    assert namer.max_tokens_topic_name == 128
-    assert namer.max_tokens_cluster_names == 1024
-
-
-def test_openai_namer_custom_max_tokens():
-    """Test that OpenAINamer accepts and passes through custom max_tokens values"""
-    namer = OpenAINamer(max_tokens_topic_name=512, max_tokens_cluster_names=2048)
-    assert namer.max_tokens_topic_name == 512
-    assert namer.max_tokens_cluster_names == 2048
-
-
-def test_anthropic_namer_custom_max_tokens():
-    """Test that AnthropicNamer accepts and passes through custom max_tokens values"""
-    namer = AnthropicNamer(max_tokens_topic_name=200, max_tokens_cluster_names=1500)
-    assert namer.max_tokens_topic_name == 200
-    assert namer.max_tokens_cluster_names == 1500
-
-
-def test_cohere_namer_custom_max_tokens():
-    """Test that CohereNamer accepts and passes through custom max_tokens values"""
-    namer = CohereNamer(max_tokens_topic_name=300, max_tokens_cluster_names=1200)
-    assert namer.max_tokens_topic_name == 300
-    assert namer.max_tokens_cluster_names == 1200
-
-
-def test_azure_namer_custom_max_tokens():
-    """Test that AzureAINamer accepts and passes through custom max_tokens values"""
-    namer = AzureAINamer(
-        model="gpt-4o",
-        max_tokens_topic_name=150,
-        max_tokens_cluster_names=1100,
-    )
-    assert namer.max_tokens_topic_name == 150
-    assert namer.max_tokens_cluster_names == 1100
-
-
-def test_ollama_namer_custom_max_tokens():
-    """Test that OllamaNamer accepts and passes through custom max_tokens values"""
-    namer = OllamaNamer(max_tokens_topic_name=175, max_tokens_cluster_names=1300)
-    assert namer.max_tokens_topic_name == 175
-    assert namer.max_tokens_cluster_names == 1300
 
 
 def test_litellm_namer_generate_topic_name_uses_instance_default(
