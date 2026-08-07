@@ -287,13 +287,13 @@ def test_anthropic_connectivity_sync_system_canary():
 
 
 def test_anthropic_namer_returns_litellm_namer():
-    namer = AnthropicNamer()
+    namer = AnthropicNamer(api_key="dummy")
 
     assert isinstance(namer, LiteLLMNamer)
 
 
 def test_anthropic_namer_default():
-    namer = AnthropicNamer()
+    namer = AnthropicNamer(api_key="dummy")
 
     assert namer.model == "anthropic/claude-haiku-4-5-20251001"
     assert namer.use_json_object is True
@@ -301,7 +301,7 @@ def test_anthropic_namer_default():
 
 
 def test_anthropic_namer_provider_kwargs_passthrough():
-    namer = AnthropicNamer(provider_kwargs={"timeout": 123})
+    namer = AnthropicNamer(api_key="dummy", provider_kwargs={"timeout": 123})
 
     assert namer.provider_kwargs["timeout"] == 123
 
@@ -328,13 +328,13 @@ def test_openai_connectivity_sync_system_canary():
 
 
 def test_openai_namer_returns_litellm_namer():
-    namer = OpenAINamer()
+    namer = OpenAINamer(api_key="dummy")
 
     assert isinstance(namer, LiteLLMNamer)
 
 
 def test_openai_namer_default():
-    namer = OpenAINamer()
+    namer = OpenAINamer(api_key="dummy")
 
     assert namer.model == "openai/gpt-4o-mini"
     assert namer.use_json_object is True
@@ -342,7 +342,7 @@ def test_openai_namer_default():
 
 
 def test_openai_namer_provider_kwargs_passthrough():
-    namer = OpenAINamer(provider_kwargs={"timeout": 123})
+    namer = OpenAINamer(api_key="dummy", provider_kwargs={"timeout": 123})
 
     assert namer.provider_kwargs["timeout"] == 123
 
@@ -350,7 +350,7 @@ def test_openai_namer_provider_kwargs_passthrough():
 def test_openai_namer_base_url_maps_to_api_base():
     """Remove once deprecation of base_url complete"""
     with pytest.warns(FutureWarning):
-        namer = OpenAINamer(base_url="http://localhost")
+        namer = OpenAINamer(api_key="dummy", base_url="http://localhost")
 
     assert namer.api_base == "http://localhost"
 
@@ -358,7 +358,7 @@ def test_openai_namer_base_url_maps_to_api_base():
 def test_openai_namer_http_client_maps_to_provider_kwargs():
     """Remove once deprecation of http_client complete"""
     with pytest.warns(FutureWarning):
-        namer = OpenAINamer(http_client="httpx.Client(timeout=123)")
+        namer = OpenAINamer(api_key="dummy", http_client="httpx.Client(timeout=123)")
 
     assert namer.provider_kwargs["http_client"] == "httpx.Client(timeout=123)"
 
@@ -384,13 +384,13 @@ def test_cohere_connectivity_sync_system_canary():
 
 
 def test_cohere_namer_returns_litellm_namer():
-    namer = CohereNamer()
+    namer = CohereNamer(api_key="dummy")
 
     assert isinstance(namer, LiteLLMNamer)
 
 
 def test_cohere_namer_default():
-    namer = CohereNamer()
+    namer = CohereNamer(api_key="dummy")
 
     assert namer.model == "cohere/command-r-08-2024"
     assert namer.use_json_object is False  # until prompting is stricter
@@ -398,7 +398,7 @@ def test_cohere_namer_default():
 
 
 def test_cohere_namer_provider_kwargs_passthrough():
-    namer = CohereNamer(provider_kwargs={"timeout": 123})
+    namer = CohereNamer(api_key="dummy", provider_kwargs={"timeout": 123})
 
     assert namer.provider_kwargs["timeout"] == 123
 
@@ -406,7 +406,7 @@ def test_cohere_namer_provider_kwargs_passthrough():
 def test_cohere_namer_base_url_maps_to_api_base():
     """Remove once deprecation of base_url complete"""
     with pytest.warns(FutureWarning):
-        namer = CohereNamer(base_url="http://localhost")
+        namer = CohereNamer(api_key="dummy", base_url="http://localhost")
 
     assert namer.api_base == "http://localhost"
 
@@ -423,7 +423,7 @@ def test_cohere_namer_env_co_api_base_maps_to_api_base(monkeypatch):
 def test_cohere_namer_httpx_client_maps_to_provider_kwargs():
     """Remove once deprecation of http_client complete"""
     with pytest.warns(FutureWarning):
-        namer = CohereNamer(httpx_client="httpx.Client(timeout=123)")
+        namer = CohereNamer(api_key="dummy", httpx_client="httpx.Client(timeout=123)")
 
     assert namer.provider_kwargs["httpx_client"] == "httpx.Client(timeout=123)"
 
@@ -458,19 +458,21 @@ def test_azureai_connectivity_sync_plain_canary():
 
 
 def test_azureai_namer_default():
-    namer = AzureAINamer(model="dummy")
+    namer = AzureAINamer(api_key="dummy", model="dummy")
 
     assert namer.model == "azure_ai/dummy"
 
 
 def test_azureai_namer_provider_kwargs_passthrough():
-    namer = AzureAINamer(model="dummy", provider_kwargs={"timeout": 123})
+    namer = AzureAINamer(
+        api_key="dummy", model="dummy", provider_kwargs={"timeout": 123}
+    )
 
     assert namer.provider_kwargs["timeout"] == 123
 
 
 def test_azureai_namer_endpoint_maps_to_api_base():
-    namer = AzureAINamer(model="dummy", endpoint="http://localhost")
+    namer = AzureAINamer(api_key="dummy", model="dummy", endpoint="http://localhost")
 
     assert namer.api_base == "http://localhost"
 
@@ -546,14 +548,14 @@ def test_gemini_connectivity_sync_system_canary():
 
 def test_gemini_namer_returns_litellm_namer():
     with pytest.warns(FutureWarning):
-        namer = GoogleGeminiNamer()
+        namer = GoogleGeminiNamer(api_key="dummy")
 
     assert isinstance(namer, LiteLLMNamer)
 
 
 @pytest.mark.filterwarnings("ignore:GoogleGeminiNamer is deprecated")
 def test_gemini_namer_default():
-    namer = GoogleGeminiNamer()
+    namer = GoogleGeminiNamer(api_key="dummy")
 
     assert namer.model == "gemini/gemini-2.5-flash-lite"
     assert namer.use_json_object is True
@@ -562,7 +564,7 @@ def test_gemini_namer_default():
 
 @pytest.mark.filterwarnings("ignore:GoogleGeminiNamer is deprecated")
 def test_gemini_namer_provider_kwargs_passthrough():
-    namer = GoogleGeminiNamer(provider_kwargs={"timeout": 123})
+    namer = GoogleGeminiNamer(api_key="dummy", provider_kwargs={"timeout": 123})
 
     assert namer.provider_kwargs["timeout"] == 123
 
@@ -1004,6 +1006,59 @@ def test_litellm_namer_custom_max_tokens():
     )
     assert namer.max_tokens_topic_name == 256
     assert namer.max_tokens_cluster_names == 2048
+
+
+def test_openai_namer_default_max_tokens():
+    """Test that OpenAINamer has correct default max_tokens values"""
+    namer = OpenAINamer(api_key="dummy")
+    assert namer.max_tokens_topic_name == 128
+    assert namer.max_tokens_cluster_names == 1024
+
+
+def test_openai_namer_custom_max_tokens():
+    """Test that OpenAINamer accepts and passes through custom max_tokens values"""
+    namer = OpenAINamer(
+        api_key="dummy", max_tokens_topic_name=512, max_tokens_cluster_names=2048
+    )
+    assert namer.max_tokens_topic_name == 512
+    assert namer.max_tokens_cluster_names == 2048
+
+
+def test_anthropic_namer_custom_max_tokens():
+    """Test that AnthropicNamer accepts and passes through custom max_tokens values"""
+    namer = AnthropicNamer(
+        api_key="dummy", max_tokens_topic_name=200, max_tokens_cluster_names=1500
+    )
+    assert namer.max_tokens_topic_name == 200
+    assert namer.max_tokens_cluster_names == 1500
+
+
+def test_cohere_namer_custom_max_tokens():
+    """Test that CohereNamer accepts and passes through custom max_tokens values"""
+    namer = CohereNamer(
+        api_key="dummy", max_tokens_topic_name=300, max_tokens_cluster_names=1200
+    )
+    assert namer.max_tokens_topic_name == 300
+    assert namer.max_tokens_cluster_names == 1200
+
+
+def test_azure_namer_custom_max_tokens():
+    """Test that AzureAINamer accepts and passes through custom max_tokens values"""
+    namer = AzureAINamer(
+        api_key="dummy",
+        model="gpt-4o",
+        max_tokens_topic_name=150,
+        max_tokens_cluster_names=1100,
+    )
+    assert namer.max_tokens_topic_name == 150
+    assert namer.max_tokens_cluster_names == 1100
+
+
+def test_ollama_namer_custom_max_tokens():
+    """Test that OllamaNamer accepts and passes through custom max_tokens values"""
+    namer = OllamaNamer(max_tokens_topic_name=175, max_tokens_cluster_names=1300)
+    assert namer.max_tokens_topic_name == 175
+    assert namer.max_tokens_cluster_names == 1300
 
 
 def test_litellm_namer_generate_topic_name_uses_instance_default(

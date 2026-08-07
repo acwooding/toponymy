@@ -118,13 +118,13 @@ async def test_anthropic_connectivity_async_system_canary():
 
 
 def test_async_anthropic_namer_returns_litellm_namer():
-    namer = AsyncAnthropicNamer()
+    namer = AsyncAnthropicNamer(api_key="dummy")
 
     assert isinstance(namer, AsyncLiteLLMNamer)
 
 
 def test_async_anthropic_namer_default():
-    namer = AsyncAnthropicNamer()
+    namer = AsyncAnthropicNamer(api_key="dummy")
 
     assert namer.model == "anthropic/claude-haiku-4-5-20251001"
     assert namer.use_json_object is True
@@ -132,7 +132,7 @@ def test_async_anthropic_namer_default():
 
 
 def test_async_anthropic_namer_provider_kwargs_passthrough():
-    namer = AsyncAnthropicNamer(provider_kwargs={"timeout": 123})
+    namer = AsyncAnthropicNamer(api_key="dummy", provider_kwargs={"timeout": 123})
 
     assert namer.provider_kwargs["timeout"] == 123
 
@@ -226,7 +226,7 @@ async def test_openai_connectivity_async_system_canary():
 
 
 def test_async_openai_namer_default():
-    namer = AsyncOpenAINamer()
+    namer = AsyncOpenAINamer(api_key="dummy")
 
     assert namer.model == "openai/gpt-4o-mini"
     assert namer.use_json_object is True
@@ -234,7 +234,7 @@ def test_async_openai_namer_default():
 
 
 def test_async_openai_namer_provider_kwargs_passthrough():
-    namer = AsyncOpenAINamer(provider_kwargs={"timeout": 123})
+    namer = AsyncOpenAINamer(api_key="dummy", provider_kwargs={"timeout": 123})
 
     assert namer.provider_kwargs["timeout"] == 123
 
@@ -242,7 +242,7 @@ def test_async_openai_namer_provider_kwargs_passthrough():
 def test_async_openai_namer_base_url_maps_to_api_base():
     """Remove once deprecation of base_url complete"""
     with pytest.warns(FutureWarning):
-        namer = AsyncOpenAINamer(base_url="http://localhost")
+        namer = AsyncOpenAINamer(api_key="dummy", base_url="http://localhost")
 
     assert namer.api_base == "http://localhost"
 
@@ -250,7 +250,7 @@ def test_async_openai_namer_base_url_maps_to_api_base():
 def test_async_openai_namer_organization_maps_to_provider_kwargs():
     """Remove once deprecation of organization complete"""
     with pytest.warns(FutureWarning):
-        namer = AsyncOpenAINamer(organization="org-123")
+        namer = AsyncOpenAINamer(api_key="dummy", organization="org-123")
 
     assert namer.provider_kwargs["organization"] == "org-123"
 
@@ -278,7 +278,7 @@ async def test_cohere_connectivity_async_system_canary():
 
 
 def test_async_cohere_namer_default():
-    namer = AsyncCohereNamer()
+    namer = AsyncCohereNamer(api_key="dummy")
 
     assert namer.model == "cohere/command-r-08-2024"
     assert namer.use_json_object is False  # until prompting is stricter
@@ -286,7 +286,7 @@ def test_async_cohere_namer_default():
 
 
 def test_async_cohere_namer_provider_kwargs_passthrough():
-    namer = AsyncCohereNamer(provider_kwargs={"timeout": 123})
+    namer = AsyncCohereNamer(api_key="dummy", provider_kwargs={"timeout": 123})
 
     assert namer.provider_kwargs["timeout"] == 123
 
@@ -294,7 +294,7 @@ def test_async_cohere_namer_provider_kwargs_passthrough():
 def test_async_cohere_namer_base_url_maps_to_api_base():
     """Remove once deprecation of base_url complete"""
     with pytest.warns(FutureWarning):
-        namer = AsyncCohereNamer(base_url="http://localhost")
+        namer = AsyncCohereNamer(api_key="dummy", base_url="http://localhost")
 
     assert namer.api_base == "http://localhost"
 
@@ -302,7 +302,9 @@ def test_async_cohere_namer_base_url_maps_to_api_base():
 def test_async_cohere_namer_httpx_client_maps_to_provider_kwargs():
     """Remove once deprecation of http_client complete"""
     with pytest.warns(FutureWarning):
-        namer = AsyncCohereNamer(httpx_client="httpx.Client(timeout=123)")
+        namer = AsyncCohereNamer(
+            api_key="dummy", httpx_client="httpx.Client(timeout=123)"
+        )
 
     assert namer.provider_kwargs["httpx_client"] == "httpx.Client(timeout=123)"
 
@@ -347,7 +349,7 @@ async def test_azureai_connectivity_async_plain_canary():
 
 
 def test_async_azureai_namer_default():
-    namer = AsyncAzureAINamer(model="dummy")
+    namer = AsyncAzureAINamer(api_key="dummy", model="dummy")
 
     assert namer.model == "azure_ai/dummy"
 
@@ -359,7 +361,9 @@ def test_async_azureai_namer_provider_kwargs_passthrough():
 
 
 def test_async_azureai_namer_endpoint_maps_to_api_base():
-    namer = AsyncAzureAINamer(model="dummy", endpoint="http://localhost")
+    namer = AsyncAzureAINamer(
+        api_key="dummy", model="dummy", endpoint="http://localhost"
+    )
 
     assert namer.api_base == "http://localhost"
 
@@ -437,14 +441,14 @@ async def test_gemini_connectivity_async_system_canary():
 
 def test_async_gemini_namer_returns_litellm_namer():
     with pytest.warns(FutureWarning):
-        namer = AsyncGoogleGeminiNamer()
+        namer = AsyncGoogleGeminiNamer(api_key="dummy")
 
     assert isinstance(namer, AsyncLiteLLMNamer)
 
 
 @pytest.mark.filterwarnings("ignore:AsyncGoogleGeminiNamer is deprecated")
 def test_async_gemini_namer_default():
-    namer = AsyncGoogleGeminiNamer()
+    namer = AsyncGoogleGeminiNamer(api_key="dummy")
 
     assert namer.model == "gemini/gemini-2.5-flash-lite"
     assert namer.use_json_object is True
@@ -453,7 +457,7 @@ def test_async_gemini_namer_default():
 
 @pytest.mark.filterwarnings("ignore:AsyncGoogleGeminiNamer is deprecated")
 def test_async_gemini_namer_provider_kwargs_passthrough():
-    namer = AsyncGoogleGeminiNamer(provider_kwargs={"timeout": 123})
+    namer = AsyncGoogleGeminiNamer(api_key="dummy", provider_kwargs={"timeout": 123})
 
     assert namer.provider_kwargs["timeout"] == 123
 

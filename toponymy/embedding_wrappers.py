@@ -1,3 +1,4 @@
+import os
 import numpy as np
 from tqdm.auto import tqdm
 import httpx
@@ -6,6 +7,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential, wait_fixed
 
 from typing import Optional, List, Protocol, Sequence
 from toponymy._utils import handle_verbose_params
+from toponymy.utility_functions import resolve_api_key
 
 
 class TextEmbedderProtocol(Protocol):
@@ -27,11 +29,12 @@ try:
     class CohereEmbedder:
         def __init__(
             self,
-            api_key,
+            api_key: str = None,
             model: str = "embed-multilingual-v3.0",
             base_url: str = None,
             httpx_client: Optional[httpx.Client] = None,
         ):
+            api_key = resolve_api_key(api_key, env_new="COHERE_API_KEY")
             self.co = cohere.ClientV2(api_key=api_key)
             self.model = model
             self.base_url = base_url
@@ -76,11 +79,12 @@ try:
 
         def __init__(
             self,
-            api_key,
+            api_key: str = None,
             model: str = "text-embedding-3-small",
             base_url: str = None,
             http_client: Optional[httpx.Client] = None,
         ):
+            api_key = resolve_api_key(api_key, env_new="OPENAI_API_KEY")
             self.api_key = api_key
             self.model = model
             self.base_url = base_url
@@ -123,11 +127,12 @@ try:
     class AnthropicEmbedder:
         def __init__(
             self,
-            api_key,
+            api_key: str = None,
             model: str = "claude-haiku-4-5-20251001",
             base_url: str = None,
             httpx_client: Optional[httpx.Client] = None,
         ):
+            api_key = resolve_api_key(api_key, env_new="ANTHROPIC_API_KEY")
             self.client = anthropic.Anthropic(api_key=api_key)
             self.model = model
             self.base_url = base_url
@@ -176,7 +181,17 @@ try:
     from azure.core.credentials import AzureKeyCredential
 
     class AzureAIEmbedder:
-        def __init__(self, api_key: str, endpoint: str, model: str):
+        def __init__(
+            self, api_key: str = None, endpoint: str = None, model: str = None
+        ):
+            api_key = resolve_api_key(api_key, env_new="AZURE_API_KEY")
+            if endpoint is None:
+                endpoint = os.getenv("AZURE_ENDPOINT")
+            if not endpoint:
+                raise ValueError(
+                    "No Azure endpoint provided. Set AZURE_ENDPOINT environment variable "
+                    "or pass endpoint parameter to AzureAIEmbedder."
+                )
             self.credentials = AzureKeyCredential(api_key)
             self.client = azure.ai.inference.EmbeddingsClient(
                 endpoint=endpoint, credential=self.credentials
@@ -233,7 +248,8 @@ try:
     import mistralai.client
 
     class MistralEmbedder:
-        def __init__(self, api_key: str, model: str = "mistral-embed"):
+        def __init__(self, api_key: str = None, model: str = "mistral-embed"):
+            api_key = resolve_api_key(api_key, env_new="MISTRAL_API_KEY")
             self.client = mistralai.client.Mistral(api_key=api_key)
             self.model = model
 
@@ -268,7 +284,8 @@ try:
     import requests
 
     class VoyageAIEmbedder:
-        def __init__(self, api_key: str, model: str = "voyage-2"):
+        def __init__(self, api_key: str = None, model: str = "voyage-2"):
+            api_key = resolve_api_key(api_key, env_new="VOYAGEAI_API_KEY")
             self.api_key = api_key
             self.model = model
             self.base_url = "https://api.voyageai.com/v1/embeddings"
