@@ -71,15 +71,15 @@ dev = [
     "black",
     "bm25s",
     "cohere",
+    "datamapplot>=0.7",
     "evoc",
-    "google-generativeai",
     "huggingface-hub<1.0",
+    "ipykernel",
     "isort",
     "matplotlib",
     "mistralai",
     "numpy>=2.0",
-    "ollama",
-    "openai",
+    "nbclient",
     "pandas>=1.0",
     "psutil",
     "pylint",
@@ -87,10 +87,9 @@ dev = [
     "pytest-asyncio",
     "pytest-azurepipelines",
     "pytest-cov",
-    "replicate",
     "requests",
+    "seaborn",
     "sentence-transformers<=5.1.2",
-    "together",
     "traitlets",
     "umap-learn",
     "pylance",
@@ -104,12 +103,4 @@ doc = [
 ]
 llama = [
     "llama-cpp-python",
-]
-example-notebooks = [
-    "datamapplot>=0.7",
-    "ipykernel>=7.2.0",
-    "jupyter>=1.1.1",
-    "seaborn",
-    "sentence-transformers>=5.1.2",
-    "tqdm>=4.67.3",
 ]

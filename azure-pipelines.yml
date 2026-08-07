@@ -22,6 +22,7 @@ pr:
     - README.rst
     include:
     - doc/*.ipynb
+    - "*"
 
 schedules:
 - cron: "0 3 * * *"  # 10pm EST/11pm EDT
