@@ -292,30 +292,87 @@ def llm_output_to_result(llm_output: str, regex: str) -> dict:
     return result
 
 
+def validate_prompt(prompt: Any, supports_system_prompts: bool) -> Dict[str, Any]:
+    """
+    Check that a prompt carries the rendering a wrapper is about to use.
+
+    Prompts are dictionaries built by :mod:`toponymy.prompt_construction`, carrying
+    every rendering of the same instruction: a "system"/"user" pair, and a "combined"
+    rendering that puts the whole instruction in a single message. A wrapper selects
+    between them at call time according to what its provider supports.
+
+    Parameters
+    ----------
+    prompt : Any
+        The prompt to check.
+    supports_system_prompts : bool
+        Whether the calling wrapper will use the system/user rendering (True) or the
+        combined rendering (False).
+
+    Returns
+    -------
+    prompt: Dict[str, Any]
+        The prompt, unchanged.
+
+    Raises
+    ------
+    InvalidLLMInputError
+        If the prompt is not a dictionary, or lacks the rendering that will be used.
+    """
+    if not isinstance(prompt, dict):
+        raise InvalidLLMInputError(
+            f"Prompt must be a dictionary of renderings, got {type(prompt)}. "
+            f"Prompts are built by toponymy.prompt_construction and carry a "
+            f"rendering under each of 'system', 'user' and 'combined'."
+        )
+
+    required = ("system", "user") if supports_system_prompts else ("combined",)
+    missing = [rendering for rendering in required if rendering not in prompt]
+    if missing:
+        raise InvalidLLMInputError(
+            f"Prompt is missing the {', '.join(missing)} rendering(s) this wrapper "
+            f"needs; it has {', '.join(sorted(prompt)) or 'no renderings'}."
+        )
+
+    return prompt
+
+
 class LLMWrapper(DebugCallbackMixin, LLMErrorHandlingMixin, ABC):
     FAIL_FAST_EXCEPTIONS: tuple = ()
 
     @abstractmethod
-    def _call_llm(self, prompt: str, temperature: float, max_tokens: int) -> str:
+    def _call_llm(
+        self, prompt: Dict[str, Any], temperature: float, max_tokens: int
+    ) -> str:
         """
-        Call the LLM with the given prompt and temperature.
+        Call the LLM with the combined rendering of the given prompt.
+
+        Implementations should send ``prompt["combined"]``, which carries the whole
+        instruction in a single message. This is the path taken when the wrapper
+        reports `supports_system_prompts` as False.
+
         This method should be implemented by subclasses.
         """
         pass
 
     @abstractmethod
     def _call_llm_with_system_prompt(
-        self, system_prompt: str, user_prompt: str, temperature: float, max_tokens: int
+        self, prompt: Dict[str, Any], temperature: float, max_tokens: int
     ) -> str:
         """
-        Call the LLM with a system prompt and user prompt.
+        Call the LLM with the system/user rendering of the given prompt.
+
+        Implementations should send ``prompt["system"]`` and ``prompt["user"]`` as a
+        system message and a user message. This is the path taken when the wrapper
+        reports `supports_system_prompts` as True.
+
         This method should be implemented by subclasses.
         """
         pass
 
     def _safe_call_llm(
         self,
-        prompt: str,
+        prompt: Dict[str, Any],
         temperature: float,
         max_tokens: int,
         routine: str | None = None,
@@ -351,20 +408,14 @@ class LLMWrapper(DebugCallbackMixin, LLMErrorHandlingMixin, ABC):
 
     def _safe_call_llm_with_system_prompt(
         self,
-        system_prompt: str,
-        user_prompt: str,
+        prompt: Dict[str, Any],
         temperature: float,
         max_tokens: int,
         routine: str | None = None,
     ) -> str:
-        prompt_payload = {
-            "system": system_prompt,
-            "user": user_prompt,
-        }
-
         try:
             raw_response = self._call_llm_with_system_prompt(
-                system_prompt, user_prompt, temperature, max_tokens
+                prompt, temperature, max_tokens
             )
 
             self._emit_debug_callback(
@@ -372,7 +423,7 @@ class LLMWrapper(DebugCallbackMixin, LLMErrorHandlingMixin, ABC):
                     "event": "llm_call_success",
                     "prompt_type": "system",
                     "routine": routine,
-                    "prompt": prompt_payload,
+                    "prompt": prompt,
                     "raw_response": raw_response,
                 }
             )
@@ -384,7 +435,7 @@ class LLMWrapper(DebugCallbackMixin, LLMErrorHandlingMixin, ABC):
                     "event": "llm_call_error",
                     "prompt_type": "system",
                     "routine": routine,
-                    "prompt": prompt_payload,
+                    "prompt": prompt,
                     "error": {
                         "type": type(e).__name__,
                         "message": str(e),
@@ -392,6 +443,37 @@ class LLMWrapper(DebugCallbackMixin, LLMErrorHandlingMixin, ABC):
                 }
             )
             self._handle_exception(e)
+
+    def _call_llm_for_prompt(
+        self,
+        prompt: Dict[str, Any],
+        temperature: float,
+        max_tokens: int,
+        routine: str | None = None,
+    ) -> str:
+        """
+        Send a prompt using whichever rendering this wrapper's provider supports.
+
+        This is the single point at which a prompt's renderings are resolved down to
+        one provider call, so that everything upstream of the wrapper can stay
+        provider agnostic.
+        """
+        prompt = validate_prompt(prompt, self.supports_system_prompts)
+
+        if self.supports_system_prompts:
+            return self._safe_call_llm_with_system_prompt(
+                prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                routine=routine,
+            )
+
+        return self._safe_call_llm(
+            prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            routine=routine,
+        )
 
     @staticmethod
     def _topic_name_error_callback(retry_state):
@@ -413,7 +495,7 @@ class LLMWrapper(DebugCallbackMixin, LLMErrorHandlingMixin, ABC):
     )
     def generate_topic_name(
         self,
-        prompt: Union[str, Dict[str, str]],
+        prompt: Dict[str, Any],
         temperature: float = 0.4,
         topic_extraction_function=lambda x: x["topic_name"],
         get_topic_name_regex=GET_TOPIC_NAME_REGEX,
@@ -422,26 +504,12 @@ class LLMWrapper(DebugCallbackMixin, LLMErrorHandlingMixin, ABC):
         if max_tokens is None:
             max_tokens = getattr(self, "max_tokens_topic_name", 128)
 
-        if isinstance(prompt, str):
-            topic_name_info_raw = self._safe_call_llm(
-                prompt,
-                temperature,
-                max_tokens=max_tokens,
-                routine="generate_topic_name",
-            )
-        elif isinstance(prompt, dict) and self.supports_system_prompts:
-            topic_name_info_raw = self._safe_call_llm_with_system_prompt(
-                system_prompt=prompt["system"],
-                user_prompt=prompt["user"],
-                temperature=temperature,
-                max_tokens=max_tokens,
-                routine="generate_topic_name",
-            )
-        else:
-            warn(f"Prompt must be a string or a dictionary, got {type(prompt)}")
-            raise InvalidLLMInputError(
-                f"Prompt must be a string or a dictionary, got {type(prompt)}"
-            )
+        topic_name_info_raw = self._call_llm_for_prompt(
+            prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            routine="generate_topic_name",
+        )
 
         topic_name_info = llm_output_to_result(
             topic_name_info_raw, get_topic_name_regex
@@ -475,7 +543,7 @@ class LLMWrapper(DebugCallbackMixin, LLMErrorHandlingMixin, ABC):
     )
     def generate_topic_cluster_names(
         self,
-        prompt: Union[str, Dict[str, str]],
+        prompt: Dict[str, Any],
         old_names: List[str],
         temperature: float = 0.4,
         extract_topic_names_function=default_extract_topic_names,
@@ -485,25 +553,12 @@ class LLMWrapper(DebugCallbackMixin, LLMErrorHandlingMixin, ABC):
         if max_tokens is None:
             max_tokens = getattr(self, "max_tokens_cluster_names", 1024)
 
-        if isinstance(prompt, str):
-            topic_name_info_raw = self._safe_call_llm(
-                prompt,
-                temperature,
-                max_tokens=max_tokens,
-                routine="generate_topic_cluster_names",
-            )
-        elif isinstance(prompt, dict) and self.supports_system_prompts:
-            topic_name_info_raw = self._safe_call_llm_with_system_prompt(
-                system_prompt=prompt["system"],
-                user_prompt=prompt["user"],
-                temperature=temperature,
-                max_tokens=max_tokens,
-                routine="generate_topic_cluster_names",
-            )
-        else:
-            raise InvalidLLMInputError(
-                f"Prompt must be a string or a dictionary, got {type(prompt)}"
-            )
+        topic_name_info_raw = self._call_llm_for_prompt(
+            prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            routine="generate_topic_cluster_names",
+        )
 
         topic_name_info = llm_output_to_result(
             topic_name_info_raw, GET_TOPIC_CLUSTER_NAMES_REGEX
@@ -597,14 +652,13 @@ class LLMWrapper(DebugCallbackMixin, LLMErrorHandlingMixin, ABC):
         try:
             if system_prompt is None:
                 response = self._call_llm(
-                    prompt,
+                    {"combined": prompt},
                     temperature=0.4,
                     max_tokens=128,
                 )
             else:
                 response = self._call_llm_with_system_prompt(
-                    system_prompt,
-                    prompt,
+                    {"system": system_prompt, "user": prompt},
                     temperature=0.4,
                     max_tokens=128,
                 )
@@ -623,11 +677,15 @@ class LLMWrapper(DebugCallbackMixin, LLMErrorHandlingMixin, ABC):
 class AsyncLLMWrapper(DebugCallbackMixin, LLMErrorHandlingMixin, ABC):
 
     async def _call_single_llm(
-        self, prompt: str, temperature: float, max_tokens: int
+        self, prompt: Dict[str, Any], temperature: float, max_tokens: int
     ) -> str:
         """
-        Execute a single provider request for one user prompt and return the raw
-        text result from the model.
+        Execute a single provider request for the combined rendering of one prompt
+        and return the raw text result from the model.
+
+        Implementations should send ``prompt["combined"]``, which carries the whole
+        instruction in a single message. This is the path taken when the wrapper
+        reports `supports_system_prompts` as False.
 
         Subclasses should implement this method when their provider interaction
         follows the common pattern of issuing one request per prompt.
@@ -659,14 +717,17 @@ class AsyncLLMWrapper(DebugCallbackMixin, LLMErrorHandlingMixin, ABC):
 
     async def _call_single_llm_with_system(
         self,
-        system_prompt: str,
-        user_prompt: str,
+        prompt: Dict[str, Any],
         temperature: float,
         max_tokens: int,
     ) -> str:
         """
-        Execute a single provider request for one system prompt + user prompt pair
+        Execute a single provider request for the system/user rendering of one prompt
         and return the raw text result from the model.
+
+        Implementations should send ``prompt["system"]`` and ``prompt["user"]`` as a
+        system message and a user message. This is the path taken when the wrapper
+        reports `supports_system_prompts` as True.
 
         Subclasses should implement this method when the provider supports system
         prompts and uses a one-request-per-prompt execution model.
@@ -694,13 +755,14 @@ class AsyncLLMWrapper(DebugCallbackMixin, LLMErrorHandlingMixin, ABC):
 
     async def _call_llm_batch(
         self,
-        prompts: List[str],
+        prompts: List[Dict[str, Any]],
         temperature: float,
         max_tokens: int,
         routine: str | None = None,
     ) -> List[CallResult[str]]:
         """
-        Process a batch of prompts and return one CallResult per prompt.
+        Process a batch of prompts using their combined rendering, and return one
+        CallResult per prompt.
 
         The default implementation wraps `_call_single_llm` with retry and error
         handling via `_safe_call_with_retry_result` and runs all prompts concurrently
@@ -738,9 +800,9 @@ class AsyncLLMWrapper(DebugCallbackMixin, LLMErrorHandlingMixin, ABC):
         tasks = [
             self._safe_call_with_retry_result(
                 self._call_single_llm,
-                prompt,
-                temperature,
-                max_tokens,
+                prompt=prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
                 routine=routine,
             )
             for prompt in prompts
@@ -749,36 +811,35 @@ class AsyncLLMWrapper(DebugCallbackMixin, LLMErrorHandlingMixin, ABC):
 
     async def _call_llm_with_system_prompt_batch(
         self,
-        system_prompts: List[str],
-        user_prompts: List[str],
+        prompts: List[Dict[str, Any]],
         temperature: float,
         max_tokens: int,
         routine: str | None = None,
     ) -> List[CallResult[str]]:
         """
-        Process a batch of system prompt + user prompt pairs and return one CallResult
-        per pair.
+        Process a batch of prompts using their system/user rendering, and return one
+        CallResult per prompt.
 
         The default implementation wraps `_call_single_llm_with_system` with retry and
-        error handling via `_safe_call_with_retry_result` and executes all prompt pairs
+        error handling via `_safe_call_with_retry_result` and executes all prompts
         concurrently using `asyncio.gather`.
 
         This produces the standard async behavior used by most wrappers:
 
-            - retryable errors are retried per prompt pair
+            - retryable errors are retried per prompt
             - fail-fast errors abort the entire batch/layer
             - exhausted retryable errors return CallResult(error=...)
             - successful calls return CallResult(value=<text>)
 
         Subclasses normally should NOT override this method if their provider model is
-        "one async request per prompt pair". Instead, implement
+        "one async request per prompt". Instead, implement
         `_call_single_llm_with_system` and inherit this default batching behavior.
 
         Override this method when the provider uses a fundamentally different batch
         model than concurrent single-call execution, such as:
 
             - provider-managed batch job APIs
-            - bulk endpoints accepting multiple prompt pairs in one request
+            - bulk endpoints accepting multiple prompts in one request
             - server-side batching that must be coordinated as a unit
 
         In the current architecture, such providers may still inherit from
@@ -789,31 +850,51 @@ class AsyncLLMWrapper(DebugCallbackMixin, LLMErrorHandlingMixin, ABC):
 
         Note:
             Some legacy wrapper implementations override `_call_llm_with_system_prompt_batch`
-            with a "one async request per prompt pair" model. Those implementations remain
+            with a "one async request per prompt" model. Those implementations remain
             supported and will take precedence over this default method.
         """
-        if len(system_prompts) != len(user_prompts):
-            raise ValueError(
-                "Number of system prompts must match number of user prompts"
-            )
-
         tasks = [
             self._safe_call_with_retry_result(
                 self._call_single_llm_with_system,
-                sys_prompt,
-                user_prompt,
-                temperature,
-                max_tokens,
+                prompt=prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
                 routine=routine,
             )
-            for sys_prompt, user_prompt in zip(system_prompts, user_prompts)
+            for prompt in prompts
         ]
 
         return await asyncio.gather(*tasks)
 
+    async def _call_llm_batch_for_prompts(
+        self,
+        prompts: List[Dict[str, Any]],
+        temperature: float,
+        max_tokens: int,
+    ) -> List[CallResult[str]]:
+        """
+        Send a batch of prompts using whichever rendering this wrapper's provider
+        supports.
+
+        This is the single point at which a prompt's renderings are resolved down to
+        one provider call, so that everything upstream of the wrapper can stay
+        provider agnostic.
+        """
+        supports_system_prompts = self.supports_system_prompts
+        prompts = [
+            validate_prompt(prompt, supports_system_prompts) for prompt in prompts
+        ]
+
+        if supports_system_prompts:
+            return await self._call_llm_with_system_prompt_batch(
+                prompts, temperature, max_tokens=max_tokens
+            )
+
+        return await self._call_llm_batch(prompts, temperature, max_tokens=max_tokens)
+
     async def generate_topic_names(
         self,
-        prompts: List[Union[str, Dict[str, str]]],
+        prompts: List[Dict[str, Any]],
         temperature: float = 0.4,
         extract_topic_name_function=lambda x: x["topic_name"],
         get_topic_name_regex=GET_TOPIC_NAME_REGEX,
@@ -830,21 +911,9 @@ class AsyncLLMWrapper(DebugCallbackMixin, LLMErrorHandlingMixin, ABC):
         if not prompts:
             return []
 
-        # Check the first prompt to determine type
-        if isinstance(prompts[0], str):
-            responses = await self._call_llm_batch(
-                prompts, temperature, max_tokens=max_tokens
-            )
-        elif isinstance(prompts[0], dict) and self.supports_system_prompts:
-            system_prompts = [p["system"] for p in prompts]
-            user_prompts = [p["user"] for p in prompts]
-            responses = await self._call_llm_with_system_prompt_batch(
-                system_prompts, user_prompts, temperature, max_tokens=max_tokens
-            )
-        else:
-            raise InvalidLLMInputError(
-                f"Prompts must be strings or dictionaries, got {type(prompts[0])}"
-            )
+        responses = await self._call_llm_batch_for_prompts(
+            prompts, temperature, max_tokens=max_tokens
+        )
 
         # Parse responses
         results = []
@@ -885,7 +954,7 @@ class AsyncLLMWrapper(DebugCallbackMixin, LLMErrorHandlingMixin, ABC):
 
     async def generate_topic_cluster_names(
         self,
-        prompts: List[Union[str, Dict[str, str]]],
+        prompts: List[Dict[str, Any]],
         old_names_list: List[List[str]],
         temperature: float = 0.4,
         extract_topic_names_function=default_extract_topic_names,
@@ -905,21 +974,9 @@ class AsyncLLMWrapper(DebugCallbackMixin, LLMErrorHandlingMixin, ABC):
         if not prompts:
             return []
 
-        # Check the first prompt to determine type
-        if isinstance(prompts[0], str):
-            responses = await self._call_llm_batch(
-                prompts, temperature, max_tokens=max_tokens
-            )
-        elif isinstance(prompts[0], dict) and self.supports_system_prompts:
-            system_prompts = [prompt["system"] for prompt in prompts]
-            user_prompts = [prompt["user"] for prompt in prompts]
-            responses = await self._call_llm_with_system_prompt_batch(
-                system_prompts, user_prompts, temperature, max_tokens=max_tokens
-            )
-        else:
-            raise InvalidLLMInputError(
-                f"Prompts must be strings or dictionaries, got {type(prompts[0])}"
-            )
+        responses = await self._call_llm_batch_for_prompts(
+            prompts, temperature, max_tokens=max_tokens
+        )
 
         # Parse responses
         results = []
@@ -1044,29 +1101,29 @@ class AsyncLLMWrapper(DebugCallbackMixin, LLMErrorHandlingMixin, ABC):
 
         try:
             if system_prompt is None:
+                probe_prompt = {"combined": prompt}
                 try:
                     response = await self._call_single_llm(
-                        prompt, temperature=0.4, max_tokens=128
+                        probe_prompt, temperature=0.4, max_tokens=128
                     )
                 except NotImplementedError:
                     responses = await self._call_llm_batch(
-                        [prompt], temperature=0.4, max_tokens=128
+                        [probe_prompt], temperature=0.4, max_tokens=128
                     )
                     if not responses:
                         raise RuntimeError("Connectivity probe returned no responses")
                     response = responses[0]
             else:
+                probe_prompt = {"system": system_prompt, "user": prompt}
                 try:
                     response = await self._call_single_llm_with_system(
-                        system_prompt,
-                        prompt,
+                        probe_prompt,
                         temperature=0.4,
                         max_tokens=128,
                     )
                 except NotImplementedError:
                     responses = await self._call_llm_with_system_prompt_batch(
-                        [system_prompt],
-                        [prompt],
+                        [probe_prompt],
                         temperature=0.4,
                         max_tokens=128,
                     )
@@ -1111,11 +1168,13 @@ class FailedImportLLMWrapper(LLMWrapper):
     def __init__(self, *args, **kwds):
         raise LLMWrapperImportError(self._import_error_message())
 
-    def _call_llm(self, prompt: str, temperature: float, max_tokens: int) -> str:
+    def _call_llm(
+        self, prompt: Dict[str, Any], temperature: float, max_tokens: int
+    ) -> str:
         raise LLMWrapperImportError(self._import_error_message())
 
     def _call_llm_with_system_prompt(
-        self, system_prompt: str, user_prompt: str, temperature: float, max_tokens: int
+        self, prompt: Dict[str, Any], temperature: float, max_tokens: int
     ) -> str:
         raise LLMWrapperImportError(self._import_error_message())
 
@@ -1135,14 +1194,13 @@ class FailedImportAsyncLLMWrapper(AsyncLLMWrapper):
         raise LLMWrapperImportError(self._import_error_message())
 
     async def _call_llm_batch(
-        self, prompts: List[str], temperature: float, max_tokens: int
+        self, prompts: List[Dict[str, Any]], temperature: float, max_tokens: int
     ) -> List[str]:
         raise LLMWrapperImportError(self._import_error_message())
 
     async def _call_llm_with_system_prompt_batch(
         self,
-        system_prompt: str,
-        user_prompts: List[str],
+        prompts: List[Dict[str, Any]],
         temperature: float,
         max_tokens: int,
     ) -> List[str]:
@@ -1449,7 +1507,9 @@ try:
             )
             return response.choices[0].message.content
 
-        def _call_llm(self, prompt: str, temperature: float, max_tokens: int) -> str:
+        def _call_llm(
+            self, prompt: Dict[str, Any], temperature: float, max_tokens: int
+        ) -> str:
             effective_temperature = (
                 self.temperature_override
                 if self.temperature_override is not None
@@ -1457,7 +1517,10 @@ try:
             )
             return self._completion_with_messages(
                 messages=[
-                    {"role": "user", "content": prompt + self.extra_prompting},
+                    {
+                        "role": "user",
+                        "content": prompt["combined"] + self.extra_prompting,
+                    },
                 ],
                 temperature=effective_temperature,
                 max_tokens=max_tokens,
@@ -1465,11 +1528,12 @@ try:
 
         def _call_llm_with_system_prompt(
             self,
-            system_prompt: str,
-            user_prompt: str,
+            prompt: Dict[str, Any],
             temperature: float,
             max_tokens: int,
         ) -> str:
+            system_prompt = prompt["system"]
+            user_prompt = prompt["user"]
             effective_temperature = (
                 self.temperature_override
                 if self.temperature_override is not None
@@ -1738,7 +1802,7 @@ try:
 
         async def _call_single_llm(
             self,
-            prompt: str,
+            prompt: Dict[str, Any],
             temperature: float,
             max_tokens: int,
         ) -> str:
@@ -1748,18 +1812,24 @@ try:
                 else temperature
             )
             return await self._acompletion_with_messages(
-                messages=[{"role": "user", "content": prompt + self.extra_prompting}],
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt["combined"] + self.extra_prompting,
+                    }
+                ],
                 temperature=effective_temperature,
                 max_tokens=max_tokens,
             )
 
         async def _call_single_llm_with_system(
             self,
-            system_prompt: str,
-            user_prompt: str,
+            prompt: Dict[str, Any],
             temperature: float,
             max_tokens: int,
         ) -> str:
+            system_prompt = prompt["system"]
+            user_prompt = prompt["user"]
             effective_temperature = (
                 self.temperature_override
                 if self.temperature_override is not None
@@ -2508,9 +2578,11 @@ try:
                 "\n\n" + llm_specific_instructions if llm_specific_instructions else ""
             )
 
-        def _call_llm(self, prompt: str, temperature: float, max_tokens: int) -> str:
+        def _call_llm(
+            self, prompt: Dict[str, Any], temperature: float, max_tokens: int
+        ) -> str:
             response = self.llm(
-                prompt + self.extra_prompting,
+                prompt["combined"] + self.extra_prompting,
                 max_new_tokens=max_tokens,
                 temperature=temperature,
             )
@@ -2519,8 +2591,7 @@ try:
 
         def _call_llm_with_system_prompt(
             self,
-            system_prompt: str,
-            user_prompt: str,
+            prompt: Dict[str, Any],
             temperature: float,
             max_tokens: int,
         ) -> str:
@@ -2594,9 +2665,16 @@ try:
                 "\n\n" + llm_specific_instructions if llm_specific_instructions else ""
             )
 
-        def _call_llm(self, prompt: str, temperature: float, max_tokens: int) -> str:
+        def _call_llm(
+            self, prompt: Dict[str, Any], temperature: float, max_tokens: int
+        ) -> str:
             response = self.llm(
-                [{"role": "user", "content": prompt + self.extra_prompting}],
+                [
+                    {
+                        "role": "user",
+                        "content": prompt["combined"] + self.extra_prompting,
+                    }
+                ],
                 return_full_text=False,
                 max_new_tokens=max_tokens,
                 temperature=temperature,
@@ -2608,15 +2686,17 @@ try:
 
         def _call_llm_with_system_prompt(
             self,
-            system_prompt: str,
-            user_prompt: str,
+            prompt: Dict[str, Any],
             temperature: float,
             max_tokens: int,
         ) -> str:
             response = self.llm(
                 [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt + self.extra_prompting},
+                    {"role": "system", "content": prompt["system"]},
+                    {
+                        "role": "user",
+                        "content": prompt["user"] + self.extra_prompting,
+                    },
                 ],
                 return_full_text=False,
                 max_new_tokens=max_tokens,
@@ -2649,12 +2729,17 @@ try:
             self.max_concurrent_requests = max_concurrent_requests
 
         async def _call_llm_batch(
-            self, prompts: List[str], temperature: float, max_tokens: int
+            self, prompts: List[Dict[str, Any]], temperature: float, max_tokens: int
         ) -> List[str]:
             responses = []
             for prompt in prompts:
                 response = self.llm(
-                    [{"role": "user", "content": prompt + self.extra_prompting}],
+                    [
+                        {
+                            "role": "user",
+                            "content": prompt["combined"] + self.extra_prompting,
+                        }
+                    ],
                     return_full_text=False,
                     max_new_tokens=max_tokens,
                     temperature=temperature,
@@ -2666,17 +2751,19 @@ try:
 
         async def _call_llm_with_system_prompt_batch(
             self,
-            system_prompts: List[str],
-            user_prompts: List[str],
+            prompts: List[Dict[str, Any]],
             temperature: float,
             max_tokens: int,
         ) -> List[str]:
             responses = []
-            for system_prompt, user_prompt in zip(system_prompts, user_prompts):
+            for prompt in prompts:
                 response = self.llm(
                     [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt + self.extra_prompting},
+                        {"role": "system", "content": prompt["system"]},
+                        {
+                            "role": "user",
+                            "content": prompt["user"] + self.extra_prompting,
+                        },
                     ],
                     return_full_text=False,
                     max_new_tokens=max_tokens,
@@ -2761,11 +2848,15 @@ try:
             """
             self.llm = vllm.LLM(model=self.model, **self.kwargs)
 
-        def _call_llm(self, prompt: str, temperature: float, max_tokens: int) -> str:
+        def _call_llm(
+            self, prompt: Dict[str, Any], temperature: float, max_tokens: int
+        ) -> str:
             sampling_params = vllm.SamplingParams(
                 temperature=temperature, max_tokens=max_tokens
             )
-            message = [{"role": "user", "content": prompt + self.extra_prompting}]
+            message = [
+                {"role": "user", "content": prompt["combined"] + self.extra_prompting}
+            ]
             try:
                 outputs = self.llm.chat(message, sampling_params=sampling_params)
             except vllm.v1.engine.exceptions.EngineDeadError:
@@ -2777,8 +2868,7 @@ try:
 
         def _call_llm_with_system_prompt(
             self,
-            system_prompt: str,
-            user_prompt: str,
+            prompt: Dict[str, Any],
             temperature: float,
             max_tokens: int,
         ) -> str:
@@ -2786,8 +2876,8 @@ try:
                 temperature=temperature, max_tokens=max_tokens
             )
             messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt + self.extra_prompting},
+                {"role": "system", "content": prompt["system"]},
+                {"role": "user", "content": prompt["user"] + self.extra_prompting},
             ]
 
             try:
@@ -2824,10 +2914,15 @@ try:
             self.llm = vllm.LLM(model=self.model, **self.kwargs)
 
         async def _call_llm_batch(
-            self, prompts: List[str], temperature: float, max_tokens: int
+            self, prompts: List[Dict[str, Any]], temperature: float, max_tokens: int
         ) -> List[str]:
             messages = [
-                [{"role": "user", "content": prompt + self.extra_prompting}]
+                [
+                    {
+                        "role": "user",
+                        "content": prompt["combined"] + self.extra_prompting,
+                    }
+                ]
                 for prompt in prompts
             ]
             sampling_params = vllm.SamplingParams(
@@ -2848,17 +2943,19 @@ try:
 
         async def _call_llm_with_system_prompt_batch(
             self,
-            system_prompts: List[str],
-            user_prompts: List[str],
+            prompts: List[Dict[str, Any]],
             temperature: float,
             max_tokens: int,
         ) -> List[str]:
             messages = []
-            for system_prompt, user_prompt in zip(system_prompts, user_prompts):
+            for prompt in prompts:
                 messages.append(
                     [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt + self.extra_prompting},
+                        {"role": "system", "content": prompt["system"]},
+                        {
+                            "role": "user",
+                            "content": prompt["user"] + self.extra_prompting,
+                        },
                     ]
                 )
             sampling_params = vllm.SamplingParams(
@@ -2965,7 +3062,7 @@ try:
             self.timeout = timeout
 
         async def _call_llm_batch(
-            self, prompts: List[str], temperature: float, max_tokens: int
+            self, prompts: List[Dict[str, Any]], temperature: float, max_tokens: int
         ) -> List[str]:
             """
             Submit a batch job and wait for completion.
@@ -2983,7 +3080,8 @@ try:
                             "messages": [
                                 {
                                     "role": "user",
-                                    "content": prompt + self.extra_prompting,
+                                    "content": prompt["combined"]
+                                    + self.extra_prompting,
                                 }
                             ],
                             "temperature": temperature,
@@ -3003,24 +3101,16 @@ try:
 
         async def _call_llm_with_system_prompt_batch(
             self,
-            system_prompts: List[str],
-            user_prompts: List[str],
+            prompts: List[Dict[str, Any]],
             temperature: float,
             max_tokens: int,
         ) -> List[str]:
             """
             Submit a batch job with system prompts and wait for completion.
             """
-            if len(system_prompts) != len(user_prompts):
-                raise ValueError(
-                    "Number of system prompts must match number of user prompts"
-                )
-
             # Create batch requests
             requests = []
-            for i, (sys_prompt, user_prompt) in enumerate(
-                zip(system_prompts, user_prompts)
-            ):
+            for i, prompt in enumerate(prompts):
                 requests.append(
                     {
                         "custom_id": str(i),
@@ -3028,10 +3118,10 @@ try:
                             "model": self.model,
                             "max_tokens": max_tokens,
                             "messages": [
-                                {"role": "system", "content": sys_prompt},
+                                {"role": "system", "content": prompt["system"]},
                                 {
                                     "role": "user",
-                                    "content": user_prompt + self.extra_prompting,
+                                    "content": prompt["user"] + self.extra_prompting,
                                 },
                             ],
                             "temperature": temperature,
@@ -3244,7 +3334,7 @@ try:
             self.timeout = timeout
 
         async def _call_llm_batch(
-            self, prompts: List[str], temperature: float, max_tokens: int
+            self, prompts: List[Dict[str, Any]], temperature: float, max_tokens: int
         ) -> List[str]:
             """
             Submit a batch job and wait for completion.
@@ -3262,7 +3352,8 @@ try:
                             "messages": [
                                 {
                                     "role": "user",
-                                    "content": prompt + self.extra_prompting,
+                                    "content": prompt["combined"]
+                                    + self.extra_prompting,
                                 }
                             ],
                             "temperature": temperature,
@@ -3282,35 +3373,27 @@ try:
 
         async def _call_llm_with_system_prompt_batch(
             self,
-            system_prompts: List[str],
-            user_prompts: List[str],
+            prompts: List[Dict[str, Any]],
             temperature: float,
             max_tokens: int,
         ) -> List[str]:
             """
             Submit a batch job with system prompts and wait for completion.
             """
-            if len(system_prompts) != len(user_prompts):
-                raise ValueError(
-                    "Number of system prompts must match number of user prompts"
-                )
-
             # Create batch requests
             requests = []
-            for i, (sys_prompt, user_prompt) in enumerate(
-                zip(system_prompts, user_prompts)
-            ):
+            for i, prompt in enumerate(prompts):
                 requests.append(
                     {
                         "custom_id": str(i),
                         "params": {
                             "model": self.model,
                             "max_tokens": max_tokens,
-                            "system": sys_prompt,
+                            "system": prompt["system"],
                             "messages": [
                                 {
                                     "role": "user",
-                                    "content": user_prompt + self.extra_prompting,
+                                    "content": prompt["user"] + self.extra_prompting,
                                 },
                             ],
                             "temperature": temperature,
@@ -4149,7 +4232,7 @@ try:
             self._warn_if_debug_callback_unsupported()
 
         async def _call_llm_batch(
-            self, prompts: List[str], temperature: float, max_tokens: int
+            self, prompts: List[Dict[str, Any]], temperature: float, max_tokens: int
         ) -> List[str]:
             """
             Submit a batch job and wait for completion.
@@ -4167,7 +4250,8 @@ try:
                             "messages": [
                                 {
                                     "role": "user",
-                                    "content": prompt + self.extra_prompting,
+                                    "content": prompt["combined"]
+                                    + self.extra_prompting,
                                 }
                             ],
                             "temperature": temperature,
@@ -4187,24 +4271,16 @@ try:
 
         async def _call_llm_with_system_prompt_batch(
             self,
-            system_prompts: List[str],
-            user_prompts: List[str],
+            prompts: List[Dict[str, Any]],
             temperature: float,
             max_tokens: int,
         ) -> List[str]:
             """
             Submit a batch job with system prompts and wait for completion.
             """
-            if len(system_prompts) != len(user_prompts):
-                raise ValueError(
-                    "Number of system prompts must match number of user prompts"
-                )
-
             # Create batch requests
             requests = []
-            for i, (sys_prompt, user_prompt) in enumerate(
-                zip(system_prompts, user_prompts)
-            ):
+            for i, prompt in enumerate(prompts):
                 requests.append(
                     {
                         "custom_id": str(i),
@@ -4212,10 +4288,10 @@ try:
                             "model": self.model,
                             "max_tokens": max_tokens,
                             "messages": [
-                                {"role": "system", "content": sys_prompt},
+                                {"role": "system", "content": prompt["system"]},
                                 {
                                     "role": "user",
-                                    "content": user_prompt + self.extra_prompting,
+                                    "content": prompt["user"] + self.extra_prompting,
                                 },
                             ],
                             "temperature": temperature,
