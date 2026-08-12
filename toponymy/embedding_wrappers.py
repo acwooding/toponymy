@@ -6,8 +6,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential, wait_fixed
 
 
 from typing import Optional, List, Protocol, Sequence
-from toponymy._utils import handle_verbose_params
-from toponymy.utility_functions import resolve_api_key
+from toponymy._utils import handle_verbose_params, resolve_api_key
 
 
 class TextEmbedderProtocol(Protocol):

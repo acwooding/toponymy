@@ -13,7 +13,7 @@ from toponymy.tools.notebook_test_helpers import (
     notebook_test_replacement,
     get_test_ollama_model,
 )
-from toponymy.utility_functions import resolve_api_key
+from toponymy._utils import resolve_api_key
 from abc import ABC, abstractmethod
 from typing import List, Optional, Union, Dict, Generic, TypeVar, Callable, Any
 from tenacity import (
