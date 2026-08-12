@@ -38,6 +38,18 @@ class TestCohereEmbedder:
             embedding_types=["float"],
         )
 
+    @patch("cohere.ClientV2")
+    def test_legacy_co_api_key(self, mock_client_v2, monkeypatch):
+        # Verify that CO_API_KEY works with deprecation warning
+        monkeypatch.delenv("COHERE_API_KEY", raising=False)
+        monkeypatch.setenv("CO_API_KEY", "dummy")
+        
+        with pytest.warns(FutureWarning, match="CO_API_KEY.*deprecated.*COHERE_API_KEY"):
+            embedder = embedders.CohereEmbedder()
+        
+        # Verify the embedder was created (mock client was called)
+        mock_client_v2.assert_called_once_with(api_key="dummy")
+
 
 class TestOpenAIEmbedder:
     @patch("openai.OpenAI")

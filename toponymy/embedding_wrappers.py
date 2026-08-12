@@ -33,7 +33,9 @@ try:
             base_url: str = None,
             httpx_client: Optional[httpx.Client] = None,
         ):
-            api_key = resolve_api_key(api_key, env_new="COHERE_API_KEY")
+            api_key = resolve_api_key(
+                api_key, env_new="COHERE_API_KEY", env_legacy="CO_API_KEY"
+            )
             self.co = cohere.ClientV2(api_key=api_key)
             self.model = model
             self.base_url = base_url
