@@ -111,14 +111,27 @@ def resolve_api_key(
     ValueError
         If required=True and no API key is found.
     """
+    # Normalize: treat empty/whitespace strings as None for consistent behavior
+    if api_key is not None:
+        api_key = api_key.strip()
+        if not api_key:
+            api_key = None
+
     if api_key is not None:
         return api_key
 
+    # Get environment variables and normalize them too
     new_key = os.getenv(env_new) if env_new else None
-    legacy_key = os.getenv(env_legacy) if env_legacy else None
-
     if new_key:
-        return new_key
+        new_key = new_key.strip()
+        if new_key:
+            return new_key
+
+    legacy_key = os.getenv(env_legacy) if env_legacy else None
+    if legacy_key:
+        legacy_key = legacy_key.strip()
+        if not legacy_key:
+            legacy_key = None
 
     if legacy_key:
         warnings.warn(
