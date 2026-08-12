@@ -196,6 +196,11 @@ try:
                 endpoint=endpoint, credential=self.credentials
             )
             self.model = model
+            if self.model is None:
+                raise ValueError(
+                    "No Azure AI model specified. Pass the model parameter to AzureAIEmbedder "
+                    "(e.g., model='text-embedding-3-small')."
+                )
 
         @retry(
             stop=stop_after_attempt(3),

@@ -139,6 +139,19 @@ class TestAzureAIEmbedder:
         # Check that BatchInput was created with correct number of items
         assert len(kwargs["input"]) == 2
 
+    @patch("azure.ai.inference.EmbeddingsClient")
+    def test_model_required(self, mock_ai_client):
+        # Verify that model parameter is required
+        with pytest.raises(
+            ValueError,
+            match="No Azure AI model specified.*model='text-embedding-3-small'",
+        ):
+            embedders.AzureAIEmbedder(
+                api_key="fake_key",
+                endpoint="https://fake-endpoint.azure.com/",
+                model=None,
+            )
+
 
 class TestMistralEmbedder:
     @patch("toponymy.embedding_wrappers.mistralai.client.Mistral")
