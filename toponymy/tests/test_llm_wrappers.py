@@ -413,6 +413,7 @@ def test_cohere_namer_base_url_maps_to_api_base():
 
 def test_cohere_namer_env_co_api_base_maps_to_api_base(monkeypatch):
     monkeypatch.delenv("COHERE_API_BASE", raising=False)
+    monkeypatch.setenv("COHERE_API_KEY", "dummy")
     monkeypatch.setenv("CO_API_URL", "dummy")
     with pytest.warns(FutureWarning):
         namer = CohereNamer()
@@ -596,21 +597,21 @@ def test_together_connectivity_plain_sync_canary():
 
 def test_together_namer_returns_litellm_namer():
     with pytest.warns(FutureWarning):
-        namer = TogetherNamer()
+        namer = TogetherNamer(api_key="dummy")
 
     assert isinstance(namer, LiteLLMNamer)
 
 
 @pytest.mark.filterwarnings("ignore:TogetherNamer is deprecated")
 def test_together_namer_default():
-    namer = TogetherNamer()
+    namer = TogetherNamer(api_key="dummy")
 
     assert namer.model == "together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo"
 
 
 @pytest.mark.filterwarnings("ignore:TogetherNamer is deprecated")
 def test_together_namer_provider_kwargs_passthrough():
-    namer = TogetherNamer(provider_kwargs={"timeout": 123})
+    namer = TogetherNamer(api_key="dummy", provider_kwargs={"timeout": 123})
 
     assert namer.provider_kwargs["timeout"] == 123
 
@@ -633,14 +634,14 @@ def test_replicate_connectivity_plain_sync_canary():
 
 def test_replicate_namer_returns_litellm_namer():
     with pytest.warns(FutureWarning):
-        namer = ReplicateNamer()
+        namer = ReplicateNamer(api_key="dummy")
 
     assert isinstance(namer, LiteLLMNamer)
 
 
 @pytest.mark.filterwarnings("ignore:ReplicateNamer is deprecated")
 def test_replicate_namer_default():
-    namer = ReplicateNamer()
+    namer = ReplicateNamer(api_key="dummy")
 
     assert namer.model == "replicate/meta/llama-2-70b-chat"
     assert namer.use_json_object is False
@@ -648,7 +649,7 @@ def test_replicate_namer_default():
 
 @pytest.mark.filterwarnings("ignore:ReplicateNamer is deprecated")
 def test_replicate_namer_provider_kwargs_passthrough():
-    namer = ReplicateNamer(provider_kwargs={"timeout": 123})
+    namer = ReplicateNamer(api_key="dummy", provider_kwargs={"timeout": 123})
 
     assert namer.provider_kwargs["timeout"] == 123
 

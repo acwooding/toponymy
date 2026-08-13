@@ -320,6 +320,7 @@ def test_async_cohere_namer_env_co_api_key_maps_to_api_key(monkeypatch):
 
 def test_async_cohere_namer_env_co_api_url_maps_to_api_base(monkeypatch):
     monkeypatch.delenv("COHERE_API_BASE", raising=False)
+    monkeypatch.setenv("COHERE_API_KEY", "dummy")
     monkeypatch.setenv("CO_API_URL", "dummy")
     with pytest.warns(FutureWarning):
         namer = AsyncCohereNamer()
@@ -355,7 +356,7 @@ def test_async_azureai_namer_default():
 
 
 def test_async_azureai_namer_provider_kwargs_passthrough():
-    namer = AsyncAzureAINamer(model="dummy", provider_kwargs={"timeout": 123})
+    namer = AsyncAzureAINamer(api_key="dummy", model="dummy", provider_kwargs={"timeout": 123})
 
     assert namer.provider_kwargs["timeout"] == 123
 
@@ -498,14 +499,14 @@ def test_async_together_namer_returns_litellm_namer():
 
 @pytest.mark.filterwarnings("ignore:AsyncTogether is deprecated")
 def test_async_together_namer_default():
-    namer = AsyncTogether()
+    namer = AsyncTogether(api_key="dummy")
 
     assert namer.model == "together_ai/meta-llama/Llama-3.3-70B-Instruct-Turbo"
 
 
 @pytest.mark.filterwarnings("ignore:AsyncTogether is deprecated")
 def test_async_together_namer_provider_kwargs_passthrough():
-    namer = AsyncTogether(provider_kwargs={"timeout": 123})
+    namer = AsyncTogether(api_key="dummy", provider_kwargs={"timeout": 123})
 
     assert namer.provider_kwargs["timeout"] == 123
 

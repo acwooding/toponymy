@@ -108,15 +108,15 @@ LITELLM_PROVIDER_CASES = [
 ]
 
 SUPPORTED_SYNC_DEBUG_CALLBACK_NAMERS = [
-    (AnthropicNamer, {}),
-    (LiteLLMNamer, {}),
-    (OpenAINamer, {}),
-    (CohereNamer, {}),
-    (TogetherNamer, {}),
-    (AzureAINamer, {"model": "dummy"}),
-    (GoogleGeminiNamer, {}),
-    (OllamaNamer, {}),
-    (ReplicateNamer, {}),
+    (AnthropicNamer, {"api_key": "dummy"}),
+    (LiteLLMNamer, {"api_key": "dummy"}),
+    (OpenAINamer, {"api_key": "dummy"}),
+    (CohereNamer, {"api_key": "dummy"}),
+    (TogetherNamer, {"api_key": "dummy"}),
+    (AzureAINamer, {"api_key": "dummy", "model": "dummy"}),
+    (GoogleGeminiNamer, {"api_key": "dummy"}),
+    (OllamaNamer, {"api_key": "dummy"}),
+    (ReplicateNamer, {"api_key": "dummy"}),
 ]
 UNSUPPORTED_SYNC_DEBUG_CALLBACK_NAMERS = [
     (HuggingFaceNamer, {"model": "hf-internal-testing/tiny-random-gpt2"}),
@@ -125,14 +125,14 @@ UNSUPPORTED_SYNC_DEBUG_CALLBACK_NAMERS = [
     # (LlamaCppNamer, {"model_path": "dummy/path/to/model.gguf"}),
 ]
 SUPPORTED_ASYNC_DEBUG_CALLBACK_NAMERS = [
-    (AsyncAnthropicNamer, {}),
-    (AsyncLiteLLMNamer, {}),
-    (AsyncOpenAINamer, {}),
-    (AsyncCohereNamer, {}),
-    (AsyncTogether, {}),
-    (AsyncAzureAINamer, {"model": "dummy"}),
-    (AsyncGoogleGeminiNamer, {}),
-    (AsyncOllamaNamer, {}),
+    (AsyncAnthropicNamer, {"api_key": "dummy"}),
+    (AsyncLiteLLMNamer, {"api_key": "dummy"}),
+    (AsyncOpenAINamer, {"api_key": "dummy"}),
+    (AsyncCohereNamer, {"api_key": "dummy"}),
+    (AsyncTogether, {"api_key": "dummy"}),
+    (AsyncAzureAINamer, {"api_key": "dummy", "model": "dummy"}),
+    (AsyncGoogleGeminiNamer, {"api_key": "dummy"}),
+    (AsyncOllamaNamer, {"api_key": "dummy"}),
 ]
 UNSUPPORTED_ASYNC_DEBUG_CALLBACK_NAMERS = [
     (AsyncHuggingFaceNamer, {"model": "hf-internal-testing/tiny-random-gpt2"}),
@@ -148,24 +148,24 @@ UNSUPPORTED_ASYNC_DEBUG_CALLBACK_NAMERS = [
 ]
 
 SYNC_LITELLM_NAMERS = [
-    (AnthropicNamer, {}),
-    (LiteLLMNamer, {}),
-    (OpenAINamer, {}),
-    (CohereNamer, {}),
-    (TogetherNamer, {}),
-    (AzureAINamer, {"model": "dummy"}),
-    (GoogleGeminiNamer, {}),
-    (OllamaNamer, {}),
-    (ReplicateNamer, {}),
+    (AnthropicNamer, {"api_key": "dummy"}),
+    (LiteLLMNamer, {"api_key": "dummy"}),
+    (OpenAINamer, {"api_key": "dummy"}),
+    (CohereNamer, {"api_key": "dummy"}),
+    (TogetherNamer, {"api_key": "dummy"}),
+    (AzureAINamer, {"api_key": "dummy", "model": "dummy"}),
+    (GoogleGeminiNamer, {"api_key": "dummy"}),
+    (OllamaNamer, {"api_key": "dummy"}),
+    (ReplicateNamer, {"api_key": "dummy"}),
 ]
 
 ASYNC_LITELLM_NAMERS = [
-    (AsyncAnthropicNamer, {}),
-    (AsyncLiteLLMNamer, {}),
-    (AsyncOpenAINamer, {}),
-    (AsyncCohereNamer, {}),
-    (AsyncTogether, {}),
-    (AsyncAzureAINamer, {"model": "dummy"}),
-    (AsyncGoogleGeminiNamer, {}),
-    (AsyncOllamaNamer, {}),
+    (AsyncAnthropicNamer, {"api_key": "dummy"}),
+    (AsyncLiteLLMNamer, {"api_key": "dummy"}),
+    (AsyncOpenAINamer, {"api_key": "dummy"}),
+    (AsyncCohereNamer, {"api_key": "dummy"}),
+    (AsyncTogether, {"api_key": "dummy"}),
+    (AsyncAzureAINamer, {"api_key": "dummy", "model": "dummy"}),
+    (AsyncGoogleGeminiNamer, {"api_key": "dummy"}),
+    (AsyncOllamaNamer, {"api_key": "dummy"}),
 ]
