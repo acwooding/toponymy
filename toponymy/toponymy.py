@@ -135,7 +135,7 @@ class Toponymy:
         # If the default prompt template is used, but the layer class is ClusterLayerSummaryText, it is
         # reasonable to switch to the summary prompt templates, if not, the user may be passing their own.
         if (
-            isinstance(layer_class, ClusterLayerSummaryText)
+            issubclass(layer_class, ClusterLayerSummaryText)
             and prompt_template == PROMPT_TEMPLATES
         ):
             self.prompt_template = SUMMARY_PROMPT_TEMPLATES
