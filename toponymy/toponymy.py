@@ -8,7 +8,7 @@ from toponymy.cluster_layer import (
 from toponymy.topic_tree import TopicTree
 from toponymy.llm_wrappers import LLMWrapper
 from toponymy.embedding_wrappers import TextEmbedderProtocol
-from toponymy.templates import PROMPT_TEMPLATES
+from toponymy.templates import PROMPT_TEMPLATES, SUMMARY_PROMPT_TEMPLATES
 from toponymy._utils import handle_verbose_params
 
 from sklearn.base import BaseEstimator
@@ -135,7 +135,7 @@ class Toponymy:
         # If the default prompt template is used, but the layer class is ClusterLayerSummaryText, it is
         # reasonable to switch to the summary prompt templates, if not, the user may be passing their own.
         if (
-            isinstance(layer_class, ClusterLayerSummaryText)
+            issubclass(layer_class, ClusterLayerSummaryText)
             and prompt_template == PROMPT_TEMPLATES
         ):
             self.prompt_template = SUMMARY_PROMPT_TEMPLATES
@@ -171,6 +171,7 @@ class Toponymy:
         List[List[int]]
             A list of lists where topic_sizes[i][j] is the size of cluster j in layer i.
         """
+
         def cluster_size(cluster_label_array):
             if cluster_label_array.min() < 0:
                 return np.bincount(cluster_label_array - cluster_label_array.min())[
@@ -179,9 +180,7 @@ class Toponymy:
             else:
                 return np.bincount(cluster_label_array).tolist()
 
-        return [
-            cluster_size(layer.cluster_labels) for layer in self.cluster_layers_
-        ]
+        return [cluster_size(layer.cluster_labels) for layer in self.cluster_layers_]
 
     def fit(
         self,
@@ -447,7 +446,10 @@ class Toponymy:
         TopicTree
             A representation of the topic tree (either html or string).
         """
-        check_is_fitted(self, ["cluster_tree_", "topic_names_", "topic_name_vectors_", "topic_sizes_"])
+        check_is_fitted(
+            self,
+            ["cluster_tree_", "topic_names_", "topic_name_vectors_", "topic_sizes_"],
+        )
 
         return TopicTree(
             self.cluster_tree_,

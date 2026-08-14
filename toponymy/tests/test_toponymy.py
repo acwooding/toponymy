@@ -1,3 +1,10 @@
+from unittest.mock import MagicMock
+from toponymy.cluster_layer import (
+    ClusterLayerSummaryText,
+    ClusterLayerText,
+)
+from toponymy.templates import PROMPT_TEMPLATES, SUMMARY_PROMPT_TEMPLATES
+
 from toponymy.toponymy import Toponymy
 from toponymy.llm_wrappers import (
     OllamaNamer,
@@ -483,3 +490,37 @@ def test_toponymy_with_mock_namer(
         assert len(topic_name.strip()) > 0
     # Verify cluster structure
     assert len(model.cluster_layers_[1].cluster_labels) == len(cluster_label_vector)
+
+
+def test_toponymy_uses_summary_templates_for_summary_layer_class():
+    model = Toponymy(
+        MagicMock(),
+        MagicMock(),
+        layer_class=ClusterLayerSummaryText,
+        prompt_template=PROMPT_TEMPLATES,
+    )
+
+    assert model.prompt_template == SUMMARY_PROMPT_TEMPLATES
+
+
+def test_toponymy_uses_default_templates_for_regular_layer_class():
+    model = Toponymy(
+        MagicMock(),
+        MagicMock(),
+        layer_class=ClusterLayerText,
+    )
+
+    assert model.prompt_template == PROMPT_TEMPLATES
+
+
+def test_toponymy_does_not_override_custom_prompt_templates():
+    custom_template = {"custom": "template"}
+
+    model = Toponymy(
+        MagicMock(),
+        MagicMock(),
+        layer_class=ClusterLayerSummaryText,
+        prompt_template=custom_template,
+    )
+
+    assert model.prompt_template is custom_template
