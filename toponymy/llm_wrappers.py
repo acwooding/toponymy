@@ -13,6 +13,7 @@ from toponymy.tools.notebook_test_helpers import (
     notebook_test_replacement,
     get_test_ollama_model,
 )
+from toponymy._utils import resolve_api_key
 from abc import ABC, abstractmethod
 from typing import List, Optional, Union, Dict, Generic, TypeVar, Callable, Any
 from tenacity import (
@@ -1193,32 +1194,6 @@ def _replicate_model(model: str) -> str:
     return f"replicate/{model}" if "replicate/" not in model else model
 
 
-def _resolve_api_key(
-    api_key: str | None,
-    env_new: str | None,
-    env_legacy: str | None,
-) -> str | None:
-    """Helper function to migrate from the old environment variables to the new ones, while still allowing explicit API keys to take precedence."""
-    if api_key is not None:
-        return api_key
-
-    new_key = os.getenv(env_new)
-    legacy_key = os.getenv(env_legacy)
-
-    if new_key:
-        return new_key
-
-    if legacy_key:
-        warn(
-            f"{env_legacy} is deprecated. Use {env_new} instead.",
-            FutureWarning,
-            stacklevel=3,
-        )
-        return legacy_key
-
-    return None
-
-
 try:
     import litellm
     from litellm.exceptions import (
@@ -2133,7 +2108,7 @@ def CohereNamer(
         provider_kwargs["httpx_client"] = httpx_client
     return LiteLLMNamer(
         model=_cohere_model(model),
-        api_key=_resolve_api_key(
+        api_key=resolve_api_key(
             api_key=api_key, env_new="COHERE_API_KEY", env_legacy="CO_API_KEY"
         ),
         api_base=_resolve_cohere_api_base(api_base, base_url),
@@ -2244,7 +2219,7 @@ def AsyncCohereNamer(
         provider_kwargs["httpx_client"] = httpx_client
     return AsyncLiteLLMNamer(
         model=_cohere_model(model),
-        api_key=_resolve_api_key(
+        api_key=resolve_api_key(
             api_key=api_key, env_new="COHERE_API_KEY", env_legacy="CO_API_KEY"
         ),
         api_base=_resolve_cohere_api_base(api_base, base_url),
@@ -3957,7 +3932,7 @@ def AzureAINamer(
     resolved_endpoint = api_base or endpoint
     return LiteLLMNamer(
         model=_azure_model(model),
-        api_key=_resolve_api_key(
+        api_key=resolve_api_key(
             api_key=api_key, env_new="AZURE_AI_API_KEY", env_legacy="AZURE_API_KEY"
         ),
         api_base=resolved_endpoint,
@@ -4050,7 +4025,7 @@ def AsyncAzureAINamer(
     resolved_endpoint = api_base or endpoint
     return AsyncLiteLLMNamer(
         model=_azure_model(model),
-        api_key=_resolve_api_key(
+        api_key=resolve_api_key(
             api_key=api_key, env_new="AZURE_AI_API_KEY", env_legacy="AZURE_API_KEY"
         ),
         api_base=resolved_endpoint,
@@ -4427,7 +4402,7 @@ def GoogleGeminiNamer(
     )
     return LiteLLMNamer(
         model=_gemini_model(model),
-        api_key=_resolve_api_key(
+        api_key=resolve_api_key(
             api_key=api_key, env_new="GEMINI_API_KEY", env_legacy="GOOGLE_API_KEY"
         ),
         api_base=api_base,
@@ -4525,7 +4500,7 @@ def AsyncGoogleGeminiNamer(
     )
     return AsyncLiteLLMNamer(
         model=_gemini_model(model),
-        api_key=_resolve_api_key(
+        api_key=resolve_api_key(
             api_key=api_key, env_new="GEMINI_API_KEY", env_legacy="GOOGLE_API_KEY"
         ),
         api_base=api_base,
