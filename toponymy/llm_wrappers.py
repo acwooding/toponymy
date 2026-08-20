@@ -4,15 +4,18 @@ from warnings import warn, filterwarnings
 import tokenizers
 import transformers
 
+from toponymy.prompt_construction import render_prompt
 from toponymy.templates import (
     GET_TOPIC_CLUSTER_NAMES_REGEX,
     GET_TOPIC_NAME_REGEX,
+    PROMPT_TEMPLATES,
     default_extract_topic_names,
 )
 from toponymy.tools.notebook_test_helpers import (
     notebook_test_replacement,
     get_test_ollama_model,
 )
+from toponymy.tools.load_prompt_examples import example_ids, load_prompt_params
 from toponymy._utils import resolve_api_key
 from abc import ABC, abstractmethod
 from typing import List, Optional, Union, Dict, Generic, TypeVar, Callable, Any
@@ -487,14 +490,7 @@ class LLMWrapper(DebugCallbackMixin, LLMErrorHandlingMixin, ABC):
         )
         return ""
 
-    # @abstractmethod
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_random_exponential(multiplier=1, min=4, max=10),
-        retry_error_callback=_topic_name_error_callback,
-        retry=retry_if_exception(_should_retry),
-    )
-    def generate_topic_name(
+    def _generate_topic_name_with_raw_response(
         self,
         prompt: Dict[str, Any],
         temperature: float = 0.4,
@@ -517,6 +513,30 @@ class LLMWrapper(DebugCallbackMixin, LLMErrorHandlingMixin, ABC):
         )
         result = topic_extraction_function(topic_name_info)
         topic_name = result if isinstance(result, tuple) else str(result)
+        return topic_name, topic_name_info_raw
+
+    # @abstractmethod
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_random_exponential(multiplier=1, min=4, max=10),
+        retry_error_callback=_topic_name_error_callback,
+        retry=retry_if_exception(_should_retry),
+    )
+    def generate_topic_name(
+        self,
+        prompt: Dict[str, Any],
+        temperature: float = 0.4,
+        topic_extraction_function=lambda x: x["topic_name"],
+        get_topic_name_regex=GET_TOPIC_NAME_REGEX,
+        max_tokens: int | None = None,
+    ) -> str | tuple:
+        topic_name, _ = self._generate_topic_name_with_raw_response(
+            prompt,
+            temperature=temperature,
+            topic_extraction_function=topic_extraction_function,
+            get_topic_name_regex=get_topic_name_regex,
+            max_tokens=max_tokens,
+        )
         return topic_name
 
     @staticmethod
@@ -668,6 +688,89 @@ class LLMWrapper(DebugCallbackMixin, LLMErrorHandlingMixin, ABC):
             result["response"] = response
 
         except Exception as e:
+            result["error_type"] = type(e).__name__
+            result["error_message"] = str(e)
+            result["original_exception"] = e
+
+        return result
+
+    def run_prompt_example(
+        self,
+        example_id: str | None = "hockey_masks",
+        prompt_kind: str = "topic_name",
+        *,
+        prompt_templates: Dict[str, Any] = None,
+        temperature: float = 0.4,
+        max_tokens: int | None = None,
+        verbose: bool = False,
+    ) -> dict:
+        """
+        Render an example prompt and run it through this namer, returning a fully
+        inspectable result for manual/debugging review (no assertions).
+        """
+        if prompt_templates is None:
+            prompt_templates = PROMPT_TEMPLATES
+        available_example_ids = example_ids()
+        if example_id not in available_example_ids:
+            raise ValueError(
+                f"example_id must be in {available_example_ids}, got {example_id}"
+            )
+        if prompt_kind not in ("topic_name", "topic_cluster_names"):
+            raise ValueError(
+                f"prompt_kind must be 'topic_name' or 'topic_cluster_names', got {prompt_kind}"
+            )
+        if max_tokens is None:
+            if prompt_kind == "topic_name":
+                max_tokens = getattr(self, "max_tokens_topic_name", 128)
+            elif prompt_kind == "topic_cluster_names":
+                max_tokens = getattr(self, "max_tokens_topic_cluster_names", 128)
+
+        if prompt_kind == "topic_name":
+            template_kind = "layer"
+        elif prompt_kind == "topic_cluster_names":
+            template_kind = "disambiguate_topics"
+
+        prompt_params = load_prompt_params(example_id)
+
+        prompt = render_prompt(prompt_templates[template_kind], prompt_params)
+
+        connection_result = self.connectivity_status()
+        if not connection_result["success"]:
+            return connection_result
+
+        result = {}
+        if verbose:
+            result["prompt"] = prompt
+
+        try:
+            if prompt_kind == "topic_cluster_names":
+                topic_names = self.generate_topic_cluster_names(
+                    prompt,
+                    old_names=prompt_params.get("old_names"),
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
+            else:
+                if verbose:
+                    topic_names, raw_response = (
+                        self._generate_topic_name_with_raw_response(
+                            prompt,
+                            temperature=temperature,
+                            max_tokens=max_tokens,
+                        )
+                    )
+                    result["raw_response"] = raw_response
+                else:
+                    topic_names = self.generate_topic_name(
+                        prompt,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                    )
+            result["topic_names"] = topic_names
+            result["success"] = True
+
+        except Exception as e:
+            result["success"] = False
             result["error_type"] = type(e).__name__
             result["error_message"] = str(e)
             result["original_exception"] = e
