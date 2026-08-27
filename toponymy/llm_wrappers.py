@@ -3499,6 +3499,7 @@ except:
         def __init__(self, *args, **kwds):
             super().__init__(*args, **kwds)
 
+
 # Ollama
 def OllamaNamer(
     model: str = "llama3.2",
