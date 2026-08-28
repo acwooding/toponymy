@@ -1,3 +1,10 @@
+from unittest.mock import MagicMock
+from toponymy.cluster_layer import (
+    ClusterLayerSummaryText,
+    ClusterLayerText,
+)
+from toponymy.templates import PROMPT_TEMPLATES, SUMMARY_PROMPT_TEMPLATES
+
 from toponymy.toponymy import Toponymy
 from toponymy.llm_wrappers import (
     OllamaNamer,
@@ -108,20 +115,14 @@ def test_toponymy_resyncs_runtime_layer_config_for_prefit_clusterer(
     object_vectors,
     clusterable_vectors,
 ):
-    # Ensure this test uses a wrapper that supports system prompts
-    assert llm.supports_system_prompts is True
-
     # Pre-fit clusterer with old settings
     clusterer.fit(
         clusterable_vectors,
         object_vectors,
-        prompt_format="combined",
         exemplar_delimiters=["<<OLD>>", "<</OLD>>"],
         show_progress_bar=False,
         verbose=False,
     )
-
-    assert all(layer.prompt_format == "combined" for layer in clusterer.cluster_layers_)
 
     new_exemplar_delimiters = ["<EXAMPLE>", "</EXAMPLE>"]
 
@@ -140,10 +141,7 @@ def test_toponymy_resyncs_runtime_layer_config_for_prefit_clusterer(
 
     model.fit(all_sentences, object_vectors, clusterable_vectors)
 
-    # prompt_format should now reflect the wrapper capability
-    assert all(layer.prompt_format == "system_user" for layer in model.cluster_layers_)
-
-    # other runtime config should also be updated
+    # runtime config should be updated
     assert all(
         layer.exemplar_delimiters == new_exemplar_delimiters
         for layer in model.cluster_layers_
@@ -171,7 +169,6 @@ def test_toponymy_alternative_options(
     clusterer.fit(
         clusterable_vectors,
         object_vectors,
-        prompt_format="combined",
         object_to_text_function=lambda x: x,
     )
     model = Toponymy(
@@ -223,7 +220,6 @@ def test_toponymy_alternative_options_2(
     clusterer.fit(
         clusterable_vectors,
         object_vectors,
-        prompt_format="system_user",
         object_to_text_function=lambda x: x,
     )
     model = Toponymy(
@@ -370,7 +366,6 @@ def test_toponymy_async_ollama(
     clusterer.fit(
         clusterable_vectors,
         object_vectors,
-        prompt_format="system_user",
         object_to_text_function=lambda x: x,
     )
 
@@ -448,9 +443,7 @@ class MockNamer(LLMWrapper):
     def _call_llm(self, prompt, temperature, max_tokens):
         return self._next(max_tokens)
 
-    def _call_llm_with_system_prompt(
-        self, system_prompt, user_prompt, temperature, max_tokens
-    ):
+    def _call_llm_with_system_prompt(self, prompt, temperature, max_tokens):
         return self._next(max_tokens)
 
 
@@ -497,3 +490,37 @@ def test_toponymy_with_mock_namer(
         assert len(topic_name.strip()) > 0
     # Verify cluster structure
     assert len(model.cluster_layers_[1].cluster_labels) == len(cluster_label_vector)
+
+
+def test_toponymy_uses_summary_templates_for_summary_layer_class():
+    model = Toponymy(
+        MagicMock(),
+        MagicMock(),
+        layer_class=ClusterLayerSummaryText,
+        prompt_template=PROMPT_TEMPLATES,
+    )
+
+    assert model.prompt_template == SUMMARY_PROMPT_TEMPLATES
+
+
+def test_toponymy_uses_default_templates_for_regular_layer_class():
+    model = Toponymy(
+        MagicMock(),
+        MagicMock(),
+        layer_class=ClusterLayerText,
+    )
+
+    assert model.prompt_template == PROMPT_TEMPLATES
+
+
+def test_toponymy_does_not_override_custom_prompt_templates():
+    custom_template = {"custom": "template"}
+
+    model = Toponymy(
+        MagicMock(),
+        MagicMock(),
+        layer_class=ClusterLayerSummaryText,
+        prompt_template=custom_template,
+    )
+
+    assert model.prompt_template is custom_template
