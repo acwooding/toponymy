@@ -54,18 +54,38 @@ You can [browse open issues](https://github.com/TutteInstitute/topicnameing/issu
 
 ### Code formatting
 
-If possible, install the [black code formatter](https://github.com/python/black) (e.g.
-`pip install black`) and run it before submitting a pull request. This helps maintain consistency
-across the code, but also there is a check in the Travis-CI continuous integration system which
-will show up as a failure in the pull request if `black` detects that it hasn't been run.
+This project uses [black](https://github.com/python/black) version **26.5.1** for code formatting. 
+All code contributions must be formatted with black before submitting a pull request.
 
-Formatting is as simple as running:
+**Option 1: Using uvx (no installation required):**
 
 ```bash
-black .
+uvx black==26.5.1 toponymy/ doc/
 ```
 
-in the root of the project.
+**Option 2: Using pip:**
+
+```bash
+pip install black==26.5.1
+black toponymy/ doc/
+```
+
+**Option 3: Using the development environment:**
+
+```bash
+uv sync --extra dev
+uv run black toponymy/ doc/
+```
+
+**Pre-commit hooks (optional):** If you'd like automatic formatting on commit, you can use pre-commit:
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+The CI system will automatically check that code is properly formatted with black 26.5.1. 
+If the check fails, you'll see which files need formatting and can use any of the methods above to fix them.
 
 ### Running the Tests
 
