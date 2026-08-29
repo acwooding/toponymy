@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock
+from functools import partial
 from toponymy.cluster_layer import (
     ClusterLayerSummaryText,
     ClusterLayerText,
@@ -524,3 +525,23 @@ def test_toponymy_does_not_override_custom_prompt_templates():
     )
 
     assert model.prompt_template is custom_template
+
+
+def test_toponymy_uses_summary_templates_for_partial_summary_layer_class():
+    partial_layer_class = partial(
+        ClusterLayerSummaryText,
+        n_keyphrases=32,
+        keyphrase_diversify_alpha=3.0,
+        n_exemplars=32,
+        exemplars_diversify_alpha=3.0,
+        n_subtopics=32,
+        subtopic_diversify_alpha=3.0,
+    )
+
+    model = Toponymy(
+        MagicMock(),
+        MagicMock(),
+        layer_class=partial_layer_class,
+    )
+
+    assert model.prompt_template == SUMMARY_PROMPT_TEMPLATES
