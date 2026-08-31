@@ -54,38 +54,25 @@ You can [browse open issues](https://github.com/TutteInstitute/topicnameing/issu
 
 ### Code formatting
 
-This project uses [black](https://github.com/python/black) version **26.5.1** for code formatting. 
+This project uses [black](https://github.com/python/black) for code formatting (version pinned in `pyproject.toml`). 
 All code contributions must be formatted with black before submitting a pull request.
 
-**Option 1: Using uvx (no installation required):**
+**Using pip:**
 
 ```bash
-uvx black==26.5.1 toponymy/ doc/
-```
-
-**Option 2: Using pip:**
-
-```bash
-pip install black==26.5.1
+pip install -e '.[dev]'
 black toponymy/ doc/
 ```
 
-**Option 3: Using the development environment:**
+**Using uv:**
 
 ```bash
 uv sync --extra dev
 uv run black toponymy/ doc/
 ```
 
-**Pre-commit hooks (optional):** If you'd like automatic formatting on commit, you can use pre-commit:
-
-```bash
-pip install pre-commit
-pre-commit install
-```
-
-The CI system will automatically check that code is properly formatted with black 26.5.1. 
-If the check fails, you'll see which files need formatting and can use any of the methods above to fix them.
+The CI system will automatically check that code is properly formatted. 
+If the check fails, you'll see which files need formatting.
 
 ### Running the Tests
 
