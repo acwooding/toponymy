@@ -54,7 +54,7 @@ log_level = "INFO"
 
 [tool.setuptools]
 zip-safe = false
-packages = ["toponymy"]
+packages = ["toponymy", "toponymy.tools"]
 include-package-data = true
 
 [tool.setuptools.package-data]
