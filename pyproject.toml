@@ -52,6 +52,10 @@ filterwarnings = [
 ]
 log_level = "INFO"
 
+[tool.black]
+line-length = 88
+target-version = ['py310']
+
 [tool.setuptools]
 zip-safe = false
 packages = ["toponymy", "toponymy.tools"]
@@ -68,7 +72,7 @@ dev = [
     "anthropic",
     "anywidget",
     "azure-ai-inference",
-    "black",
+    "black==26.5.1",
     "bm25s",
     "cohere",
     "datamapplot>=0.7",
